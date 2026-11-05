@@ -7,9 +7,34 @@ package homedb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+const addMember = `-- name: AddMember :exec
+INSERT INTO javis.home_members (home_id, user_id, role, can_unlock)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (home_id, user_id) DO NOTHING
+`
+
+type AddMemberParams struct {
+	HomeID    uuid.UUID
+	UserID    uuid.UUID
+	Role      string
+	CanUnlock bool
+}
+
+// An existing member keeps their role when accepting another invitation.
+func (q *Queries) AddMember(ctx context.Context, arg AddMemberParams) error {
+	_, err := q.db.Exec(ctx, addMember,
+		arg.HomeID,
+		arg.UserID,
+		arg.Role,
+		arg.CanUnlock,
+	)
+	return err
+}
 
 const addOwner = `-- name: AddOwner :exec
 INSERT INTO javis.home_members (home_id, user_id, role, can_unlock)
@@ -37,6 +62,20 @@ func (q *Queries) CountOwnedHomes(ctx context.Context, userID uuid.UUID) (int64,
 	return count, err
 }
 
+const countSeats = `-- name: CountSeats :one
+SELECT (SELECT count(*) FROM javis.home_members m WHERE m.home_id = $1)
+    + (SELECT count(*) FROM javis.home_invites i
+       WHERE i.home_id = $1 AND i.status = 'pending' AND i.expires_at > now())
+`
+
+// Members plus open invitations, which hold a place until they are answered.
+func (q *Queries) CountSeats(ctx context.Context, homeID uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, countSeats, homeID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createHome = `-- name: CreateHome :exec
 INSERT INTO javis.homes (id, name, created_by) VALUES ($1, $2, $3)
 `
@@ -50,6 +89,52 @@ type CreateHomeParams struct {
 func (q *Queries) CreateHome(ctx context.Context, arg CreateHomeParams) error {
 	_, err := q.db.Exec(ctx, createHome, arg.ID, arg.Name, arg.CreatedBy)
 	return err
+}
+
+const createInvite = `-- name: CreateInvite :one
+INSERT INTO javis.home_invites (id, home_id, phone, role, can_unlock, invited_by, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, now() + make_interval(days => $7::integer))
+ON CONFLICT (home_id, phone) WHERE status = 'pending' DO NOTHING
+RETURNING id, phone, role, can_unlock, expires_at
+`
+
+type CreateInviteParams struct {
+	ID        uuid.UUID
+	HomeID    uuid.UUID
+	Phone     string
+	Role      string
+	CanUnlock bool
+	InvitedBy uuid.UUID
+	ValidDays int32
+}
+
+type CreateInviteRow struct {
+	ID        uuid.UUID
+	Phone     string
+	Role      string
+	CanUnlock bool
+	ExpiresAt time.Time
+}
+
+func (q *Queries) CreateInvite(ctx context.Context, arg CreateInviteParams) (CreateInviteRow, error) {
+	row := q.db.QueryRow(ctx, createInvite,
+		arg.ID,
+		arg.HomeID,
+		arg.Phone,
+		arg.Role,
+		arg.CanUnlock,
+		arg.InvitedBy,
+		arg.ValidDays,
+	)
+	var i CreateInviteRow
+	err := row.Scan(
+		&i.ID,
+		&i.Phone,
+		&i.Role,
+		&i.CanUnlock,
+		&i.ExpiresAt,
+	)
+	return i, err
 }
 
 const createZone = `-- name: CreateZone :one
@@ -85,12 +170,48 @@ func (q *Queries) CreateZone(ctx context.Context, arg CreateZoneParams) (CreateZ
 	return i, err
 }
 
+const declineInvite = `-- name: DeclineInvite :execrows
+UPDATE javis.home_invites
+SET status = 'declined', responded_at = now()
+WHERE id = $1 AND phone = $2 AND status = 'pending' AND expires_at > now()
+`
+
+type DeclineInviteParams struct {
+	ID    uuid.UUID
+	Phone string
+}
+
+func (q *Queries) DeclineInvite(ctx context.Context, arg DeclineInviteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, declineInvite, arg.ID, arg.Phone)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteHome = `-- name: DeleteHome :exec
 DELETE FROM javis.homes WHERE id = $1
 `
 
 func (q *Queries) DeleteHome(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteHome, id)
+	return err
+}
+
+const expirePendingInvite = `-- name: ExpirePendingInvite :exec
+UPDATE javis.home_invites
+SET status = 'expired', responded_at = now()
+WHERE home_id = $1 AND phone = $2 AND status = 'pending' AND expires_at <= now()
+`
+
+type ExpirePendingInviteParams struct {
+	HomeID uuid.UUID
+	Phone  string
+}
+
+// Frees the one-pending-invitation index for a number whose invitation lapsed.
+func (q *Queries) ExpirePendingInvite(ctx context.Context, arg ExpirePendingInviteParams) error {
+	_, err := q.db.Exec(ctx, expirePendingInvite, arg.HomeID, arg.Phone)
 	return err
 }
 
@@ -119,6 +240,54 @@ func (q *Queries) GetHome(ctx context.Context, arg GetHomeParams) (GetHomeRow, e
 	return i, err
 }
 
+const getMember = `-- name: GetMember :one
+SELECT m.user_id, u.name, m.role, m.can_unlock
+FROM javis.home_members m
+JOIN javis.users u ON u.id = m.user_id
+WHERE m.home_id = $1 AND m.user_id = $2
+`
+
+type GetMemberParams struct {
+	HomeID uuid.UUID
+	UserID uuid.UUID
+}
+
+type GetMemberRow struct {
+	UserID    uuid.UUID
+	Name      *string
+	Role      string
+	CanUnlock bool
+}
+
+func (q *Queries) GetMember(ctx context.Context, arg GetMemberParams) (GetMemberRow, error) {
+	row := q.db.QueryRow(ctx, getMember, arg.HomeID, arg.UserID)
+	var i GetMemberRow
+	err := row.Scan(
+		&i.UserID,
+		&i.Name,
+		&i.Role,
+		&i.CanUnlock,
+	)
+	return i, err
+}
+
+const getOpenInviteHome = `-- name: GetOpenInviteHome :one
+SELECT home_id FROM javis.home_invites
+WHERE id = $1 AND phone = $2 AND status = 'pending' AND expires_at > now()
+`
+
+type GetOpenInviteHomeParams struct {
+	ID    uuid.UUID
+	Phone string
+}
+
+func (q *Queries) GetOpenInviteHome(ctx context.Context, arg GetOpenInviteHomeParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getOpenInviteHome, arg.ID, arg.Phone)
+	var home_id uuid.UUID
+	err := row.Scan(&home_id)
+	return home_id, err
+}
+
 const getRole = `-- name: GetRole :one
 SELECT role FROM javis.home_members WHERE home_id = $1 AND user_id = $2
 `
@@ -133,6 +302,17 @@ func (q *Queries) GetRole(ctx context.Context, arg GetRoleParams) (string, error
 	var role string
 	err := row.Scan(&role)
 	return role, err
+}
+
+const getUserPhone = `-- name: GetUserPhone :one
+SELECT phone FROM javis.users WHERE id = $1
+`
+
+func (q *Queries) GetUserPhone(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getUserPhone, id)
+	var phone string
+	err := row.Scan(&phone)
+	return phone, err
 }
 
 const listHomes = `-- name: ListHomes :many
@@ -168,6 +348,133 @@ func (q *Queries) ListHomes(ctx context.Context, userID uuid.UUID) ([]ListHomesR
 			&i.Role,
 			&i.ZoneCount,
 			&i.MemberCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMembers = `-- name: ListMembers :many
+SELECT m.user_id, u.name, m.role, m.can_unlock
+FROM javis.home_members m
+JOIN javis.users u ON u.id = m.user_id
+WHERE m.home_id = $1
+ORDER BY m.created_at, m.user_id
+`
+
+type ListMembersRow struct {
+	UserID    uuid.UUID
+	Name      *string
+	Role      string
+	CanUnlock bool
+}
+
+func (q *Queries) ListMembers(ctx context.Context, homeID uuid.UUID) ([]ListMembersRow, error) {
+	rows, err := q.db.Query(ctx, listMembers, homeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMembersRow
+	for rows.Next() {
+		var i ListMembersRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Name,
+			&i.Role,
+			&i.CanUnlock,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOpenInvites = `-- name: ListOpenInvites :many
+SELECT id, phone, role, can_unlock, expires_at
+FROM javis.home_invites
+WHERE home_id = $1 AND status = 'pending' AND expires_at > now()
+ORDER BY created_at, id
+`
+
+type ListOpenInvitesRow struct {
+	ID        uuid.UUID
+	Phone     string
+	Role      string
+	CanUnlock bool
+	ExpiresAt time.Time
+}
+
+func (q *Queries) ListOpenInvites(ctx context.Context, homeID uuid.UUID) ([]ListOpenInvitesRow, error) {
+	rows, err := q.db.Query(ctx, listOpenInvites, homeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOpenInvitesRow
+	for rows.Next() {
+		var i ListOpenInvitesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Phone,
+			&i.Role,
+			&i.CanUnlock,
+			&i.ExpiresAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReceivedInvites = `-- name: ListReceivedInvites :many
+SELECT i.id, h.name AS home_name, u.name AS invited_by_name, i.role, i.expires_at,
+    (SELECT count(*) FROM javis.zones z WHERE z.home_id = i.home_id) AS zone_count
+FROM javis.home_invites i
+JOIN javis.homes h ON h.id = i.home_id
+JOIN javis.users u ON u.id = i.invited_by
+WHERE i.phone = $1 AND i.status = 'pending' AND i.expires_at > now()
+ORDER BY i.created_at, i.id
+`
+
+type ListReceivedInvitesRow struct {
+	ID            uuid.UUID
+	HomeName      string
+	InvitedByName *string
+	Role          string
+	ExpiresAt     time.Time
+	ZoneCount     int64
+}
+
+func (q *Queries) ListReceivedInvites(ctx context.Context, phone string) ([]ListReceivedInvitesRow, error) {
+	rows, err := q.db.Query(ctx, listReceivedInvites, phone)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListReceivedInvitesRow
+	for rows.Next() {
+		var i ListReceivedInvitesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.HomeName,
+			&i.InvitedByName,
+			&i.Role,
+			&i.ExpiresAt,
+			&i.ZoneCount,
 		); err != nil {
 			return nil, err
 		}
@@ -221,6 +528,29 @@ func (q *Queries) LockHome(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const lockOpenInvite = `-- name: LockOpenInvite :one
+SELECT role, can_unlock FROM javis.home_invites
+WHERE id = $1 AND phone = $2 AND status = 'pending' AND expires_at > now()
+FOR UPDATE
+`
+
+type LockOpenInviteParams struct {
+	ID    uuid.UUID
+	Phone string
+}
+
+type LockOpenInviteRow struct {
+	Role      string
+	CanUnlock bool
+}
+
+func (q *Queries) LockOpenInvite(ctx context.Context, arg LockOpenInviteParams) (LockOpenInviteRow, error) {
+	row := q.db.QueryRow(ctx, lockOpenInvite, arg.ID, arg.Phone)
+	var i LockOpenInviteRow
+	err := row.Scan(&i.Role, &i.CanUnlock)
+	return i, err
+}
+
 const lockOwnerHomes = `-- name: LockOwnerHomes :exec
 SELECT pg_advisory_xact_lock(hashtextextended('homes:' || $1::text, 0))
 `
@@ -228,6 +558,49 @@ SELECT pg_advisory_xact_lock(hashtextextended('homes:' || $1::text, 0))
 // Serializes home creation per owner so parallel requests respect the limit.
 func (q *Queries) LockOwnerHomes(ctx context.Context, userID string) error {
 	_, err := q.db.Exec(ctx, lockOwnerHomes, userID)
+	return err
+}
+
+const markInviteAccepted = `-- name: MarkInviteAccepted :exec
+UPDATE javis.home_invites SET status = 'accepted', responded_at = now() WHERE id = $1
+`
+
+func (q *Queries) MarkInviteAccepted(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markInviteAccepted, id)
+	return err
+}
+
+const phoneIsMember = `-- name: PhoneIsMember :one
+SELECT EXISTS (
+    SELECT 1 FROM javis.home_members m
+    JOIN javis.users u ON u.id = m.user_id
+    WHERE m.home_id = $1 AND u.phone = $2
+)
+`
+
+type PhoneIsMemberParams struct {
+	HomeID uuid.UUID
+	Phone  string
+}
+
+func (q *Queries) PhoneIsMember(ctx context.Context, arg PhoneIsMemberParams) (bool, error) {
+	row := q.db.QueryRow(ctx, phoneIsMember, arg.HomeID, arg.Phone)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const removeMember = `-- name: RemoveMember :exec
+DELETE FROM javis.home_members WHERE home_id = $1 AND user_id = $2
+`
+
+type RemoveMemberParams struct {
+	HomeID uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) RemoveMember(ctx context.Context, arg RemoveMemberParams) error {
+	_, err := q.db.Exec(ctx, removeMember, arg.HomeID, arg.UserID)
 	return err
 }
 
@@ -242,6 +615,49 @@ type RenameHomeParams struct {
 
 func (q *Queries) RenameHome(ctx context.Context, arg RenameHomeParams) error {
 	_, err := q.db.Exec(ctx, renameHome, arg.ID, arg.Name)
+	return err
+}
+
+const revokeInvite = `-- name: RevokeInvite :execrows
+UPDATE javis.home_invites
+SET status = 'revoked', responded_at = now()
+WHERE id = $1 AND home_id = $2 AND status = 'pending' AND expires_at > now()
+`
+
+type RevokeInviteParams struct {
+	ID     uuid.UUID
+	HomeID uuid.UUID
+}
+
+func (q *Queries) RevokeInvite(ctx context.Context, arg RevokeInviteParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeInvite, arg.ID, arg.HomeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateMember = `-- name: UpdateMember :exec
+UPDATE javis.home_members
+SET role = COALESCE($1, role),
+    can_unlock = COALESCE($2, can_unlock)
+WHERE home_id = $3 AND user_id = $4
+`
+
+type UpdateMemberParams struct {
+	Role      *string
+	CanUnlock *bool
+	HomeID    uuid.UUID
+	UserID    uuid.UUID
+}
+
+func (q *Queries) UpdateMember(ctx context.Context, arg UpdateMemberParams) error {
+	_, err := q.db.Exec(ctx, updateMember,
+		arg.Role,
+		arg.CanUnlock,
+		arg.HomeID,
+		arg.UserID,
+	)
 	return err
 }
 

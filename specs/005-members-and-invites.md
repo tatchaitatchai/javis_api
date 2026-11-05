@@ -1,6 +1,6 @@
 # Home members and invitations
 
-Status: Proposed — depends on `004-homes-and-zones.md`  
+Status: Implemented — depends on `004-homes-and-zones.md`  
 Updated: 2026-11-05
 
 ## Context
@@ -44,19 +44,24 @@ All routes require a session. Non-members get 404 `home_not_found`.
 | Operation | Who | Success | Errors |
 | --- | --- | --- | --- |
 | `GET /v1/homes/{homeId}/members` | any member | 200 `{members[], invites[]}` | 404 |
-| `POST /v1/homes/{homeId}/invites` `{phone, role, can_unlock}` | owner, admin | 201 `Invite` | 400 `invalid_phone`, 403 `forbidden`, 409 `already_member`, 409 `already_invited`, 409 `member_limit_reached` |
+| `POST /v1/homes/{homeId}/invites` `{phone, role, can_unlock}` | owner, admin | 201 `Invite` | 400 `invalid_phone`, 400 `invalid_role`, 403 `forbidden`, 409 `already_member`, 409 `already_invited`, 409 `member_limit_reached` |
 | `DELETE /v1/homes/{homeId}/invites/{inviteId}` | owner, admin | 204 | 403, 404 `invite_not_found` |
-| `PATCH /v1/homes/{homeId}/members/{userId}` `{role?, can_unlock?}` | owner | 200 `Member` | 400, 403, 404 `member_not_found` |
-| `DELETE /v1/homes/{homeId}/members/{userId}` | see below | 204 | 403, 404 |
+| `PATCH /v1/homes/{homeId}/members/{userId}` `{role?, can_unlock?}` | owner | 200 `Member` | 400 `invalid_member_update`, 403, 404 `member_not_found` |
+| `DELETE /v1/homes/{homeId}/members/{userId}` | see below | 204 | 403, 404 `member_not_found` |
 | `GET /v1/me/invites` | invitee | 200 `{items: ReceivedInvite[]}` | — |
 | `POST /v1/me/invites/{inviteId}/accept` | invitee | 200 `Home` | 404 `invite_not_found` |
 | `POST /v1/me/invites/{inviteId}/decline` | invitee | 204 | 404 |
 
 ```text
-Member          {user_id, name, role, can_unlock}
+Member          {user_id, name, role, can_unlock}      name may be null
 Invite          {id, phone_masked, role, can_unlock, expires_at}
 ReceivedInvite  {id, home_name, invited_by_name, role, zone_count, expires_at}
+                                                       invited_by_name may be null
 ```
+
+`phone` is E.164, as in `POST /v1/auth/otp/request`; the app converts `089…`.
+`PATCH` accepts only `admin` or `member` as role and never changes the owner's
+own row (403).
 
 `phone_masked` follows the app's `089 xxx 4521` form. Joined members' phone
 numbers are never returned: the app does not display them, so they stay private
@@ -90,19 +95,27 @@ javis.home_invites  id uuid PK, home_id FK ON DELETE CASCADE, phone text, role t
                     can_unlock bool, invited_by FK users, status text, expires_at,
                     created_at, responded_at NULL
                     CHECK role IN ('admin','member')
-                    CHECK status IN ('pending','accepted','declined','revoked')
+                    CHECK status IN ('pending','accepted','declined','revoked','expired')
                     UNIQUE (home_id, phone) WHERE status = 'pending'
                     INDEX (phone) WHERE status = 'pending'
 ```
 
-`home_members` comes from `004-homes-and-zones.md`.
+`home_members` comes from `004-homes-and-zones.md`. `expired` was added during
+implementation: inviting a number again marks its lapsed invitation `expired`,
+which frees the one-pending-invitation index.
 
 ## Implementation notes
 
-- Stays in module `internal/home`, split into `members.go` / `invites.go`.
-- Accept runs in one `WithTx`: lock the invitation row, re-check pending and not
-  expired, confirm the session's phone equals `invites.phone`, insert the member,
-  set `accepted`. Two concurrent accepts create one membership.
+- Stays in module `internal/home`, split into `members.go`, `invites.go` and
+  `members_handler.go`. It reads `javis.users` with its own queries for names and
+  the session's phone, and uses `auth.ValidPhone` so one rule defines a number.
+- Every membership change runs in `inHome`: it locks the home row, then checks the
+  caller's role under that lock, so a person just removed or demoted cannot act
+  on the old role, and the seat limit holds under parallel requests.
+- Accept runs in one `WithTx`: lock the home, then lock the invitation row scoped
+  to the session's phone, re-checking pending and not expired, insert the member,
+  set `accepted`. Two concurrent accepts create one membership. Locks are always
+  taken home first, then invitation.
 - The phone match is the only proof of identity, and OTP verified it. An
   invitation for a number never grants access to anyone else.
 - Removing a member deletes the row, so `can_unlock` is revoked at once. Revoking
@@ -124,6 +137,9 @@ javis.home_invites  id uuid PK, home_id FK ON DELETE CASCADE, phone text, role t
 
 - A recycled mobile number could inherit a pending invitation; the 7-day expiry
   limits that window.
+- `already_member` tells an owner or admin that a number they typed belongs to
+  someone in the home, although the member list hides numbers.
+- `home_invites` keeps full numbers of answered invitations; no purge exists yet.
 - An invitation to a stranger's number reveals the home's name and inviter's
   name to that person, which is why it needs the inviter's care. Unlock rights
   are only effective after the lock spec.
@@ -137,8 +153,27 @@ javis.home_invites  id uuid PK, home_id FK ON DELETE CASCADE, phone text, role t
 
 ## Verification
 
-Not implemented.
+Run on 2026-11-05 with Docker `postgres:17`:
+
+- `gofmt -l .` no output; `go vet ./...` passed.
+- `go test -race -count=1 ./...` passed. `internal/home/members_test.go` drives the
+  real router and PostgreSQL and covers every permission row with its denied
+  cases, the invited-number check, expired, revoked, declined and used invitations,
+  conflicts and re-inviting, number privacy, the seat limit including parallel
+  requests, 8 concurrent accepts, cascade delete and sessions on all 8 routes.
+- Breaking a rule on purpose made a test fail each time: admin invite limits,
+  admin removing an admin, changing the owner, the seat limit, the home lock, and
+  marking lapsed invitations. This found one gap, a member removing another
+  member, which now has its own test.
+- `make migrate-up`, `migrate-down`, `migrate-up` on a throwaway container: 7
+  javis tables, 6 after rolling back `000004_home_invites.sql`, 7 again.
+
+`000004` was also applied to the local Compose database on 2026-11-05.
+
+Not run: the compiled binary over real HTTP. The Flutter app does not call these
+routes yet, and its Members screen still shows the admin role and unlock switch
+to admins.
 
 ## Current status
 
-Spec only.
+API implemented in `internal/home`. App integration is pending.

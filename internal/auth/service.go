@@ -119,8 +119,13 @@ func NewService(pool *pgxpool.Pool, options Options) *Service {
 
 // RequestCode issues and sends a code. It behaves the same whether or not the
 // number has an account, so it cannot reveal who is a customer.
+// ValidPhone reports whether phone is a Thai mobile number in E.164 form.
+func ValidPhone(phone string) bool {
+	return thaiMobile.MatchString(phone)
+}
+
 func (s *Service) RequestCode(ctx context.Context, phone, clientIP string) (Challenge, error) {
-	if !thaiMobile.MatchString(phone) {
+	if !ValidPhone(phone) {
 		return Challenge{}, ErrInvalidPhone
 	}
 	code, err := newCode()
@@ -194,7 +199,7 @@ func checkSendLimits(ctx context.Context, queries *authdb.Queries, phone, client
 // VerifyCode exchanges a correct code for a session. The first success for a
 // number creates its account. Wrong attempts are committed, not rolled back.
 func (s *Service) VerifyCode(ctx context.Context, phone, code string) (Session, error) {
-	if !thaiMobile.MatchString(phone) || !sixDigits.MatchString(code) {
+	if !ValidPhone(phone) || !sixDigits.MatchString(code) {
 		return Session{}, ErrInvalidRequest
 	}
 	var session Session

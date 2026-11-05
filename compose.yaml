@@ -1,12 +1,12 @@
 services:
   db:
-    image: postgres:17-alpine
+    image: postgres:17
     environment:
       POSTGRES_DB: javis
       POSTGRES_USER: javis
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

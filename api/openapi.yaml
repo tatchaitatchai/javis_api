@@ -13,6 +13,8 @@ tags:
     description: Phone OTP sign-in, sessions and the signed-in account
   - name: homes
     description: Homes and zones. A non-member always receives 404.
+  - name: members
+    description: People in a home, invitations and their answers.
 paths:
   /health/live:
     get:
@@ -406,10 +408,268 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes/{homeId}/members:
+    get:
+      operationId: listMembers
+      summary: People in a home and its open invitations
+      tags: [members]
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+      responses:
+        "200":
+          description: Members and open invitations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberList"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not a home the caller belongs to (`home_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes/{homeId}/members/{userId}:
+    patch:
+      operationId: updateMember
+      summary: Change a member's role or unlock right (owner)
+      tags: [members]
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+        - $ref: "#/components/parameters/userId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberUpdate"
+      responses:
+        "200":
+          description: The updated member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Member"
+        "400":
+          description: No valid field to change (`invalid_member_update`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Only the owner may do this, and the owner cannot be changed (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Unknown home (`home_not_found`) or person (`member_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: removeMember
+      summary: Remove a member, or leave the home by removing yourself
+      tags: [members]
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+        - $ref: "#/components/parameters/userId"
+      responses:
+        "204":
+          description: The person is no longer in the home.
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this, or the target is the owner (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Unknown home (`home_not_found`) or person (`member_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes/{homeId}/invites:
+    post:
+      operationId: createInvite
+      summary: Invite a mobile number to a home
+      tags: [members]
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteCreate"
+      responses:
+        "201":
+          description: The invitation, valid for seven days.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invite"
+        "400":
+          description: Not a Thai mobile number (`invalid_phone`) or unknown role (`invalid_role`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this invitation (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not a home the caller belongs to (`home_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict (`already_member`, `already_invited` or `member_limit_reached`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes/{homeId}/invites/{inviteId}:
+    delete:
+      operationId: revokeInvite
+      summary: Cancel an open invitation
+      tags: [members]
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+        - $ref: "#/components/parameters/inviteId"
+      responses:
+        "204":
+          description: The invitation can no longer be accepted.
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Unknown home (`home_not_found`) or invitation (`invite_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/me/invites:
+    get:
+      operationId: listReceivedInvites
+      summary: Open invitations for the signed-in number
+      tags: [members]
+      responses:
+        "200":
+          description: Open invitations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceivedInviteList"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/me/invites/{inviteId}/accept:
+    post:
+      operationId: acceptInvite
+      summary: Join the home of an invitation
+      tags: [members]
+      parameters:
+        - $ref: "#/components/parameters/inviteId"
+      responses:
+        "200":
+          description: The home that was joined.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Home"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No open invitation for this number (`invite_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/me/invites/{inviteId}/decline:
+    post:
+      operationId: declineInvite
+      summary: Decline an invitation
+      tags: [members]
+      parameters:
+        - $ref: "#/components/parameters/inviteId"
+      responses:
+        "204":
+          description: The invitation was declined.
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No open invitation for this number (`invite_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   parameters:
     homeId:
       name: homeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    userId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    inviteId:
+      name: inviteId
       in: path
       required: true
       schema:
@@ -504,6 +764,99 @@ components:
         name:
           type: string
           description: 1 to 60 characters after trimming
+    InviteRole:
+      type: string
+      enum: [admin, member]
+    Member:
+      type: object
+      required: [user_id, name, role, can_unlock]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          nullable: true
+        role:
+          $ref: "#/components/schemas/HomeRole"
+        can_unlock:
+          type: boolean
+    MemberUpdate:
+      type: object
+      description: Send at least one field.
+      properties:
+        role:
+          $ref: "#/components/schemas/InviteRole"
+        can_unlock:
+          type: boolean
+    MemberList:
+      type: object
+      required: [members, invites]
+      properties:
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/Member"
+        invites:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invite"
+    Invite:
+      type: object
+      required: [id, phone_masked, role, can_unlock, expires_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        phone_masked:
+          type: string
+          example: 089 xxx 4521
+        role:
+          $ref: "#/components/schemas/InviteRole"
+        can_unlock:
+          type: boolean
+        expires_at:
+          type: string
+          format: date-time
+    InviteCreate:
+      type: object
+      required: [phone, role, can_unlock]
+      properties:
+        phone:
+          type: string
+          description: E.164 Thai mobile number.
+          example: "+66891234521"
+        role:
+          $ref: "#/components/schemas/InviteRole"
+        can_unlock:
+          type: boolean
+    ReceivedInvite:
+      type: object
+      required: [id, home_name, invited_by_name, role, zone_count, expires_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        home_name:
+          type: string
+        invited_by_name:
+          type: string
+          nullable: true
+        role:
+          $ref: "#/components/schemas/InviteRole"
+        zone_count:
+          type: integer
+        expires_at:
+          type: string
+          format: date-time
+    ReceivedInviteList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceivedInvite"
     OtpRequest:
       type: object
       required: [phone]

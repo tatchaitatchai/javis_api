@@ -19,6 +19,19 @@ type JavisHome struct {
 	UpdatedAt time.Time
 }
 
+type JavisHomeInvite struct {
+	ID          uuid.UUID
+	HomeID      uuid.UUID
+	Phone       string
+	Role        string
+	CanUnlock   bool
+	InvitedBy   uuid.UUID
+	Status      string
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
+	RespondedAt pgtype.Timestamptz
+}
+
 type JavisHomeMember struct {
 	HomeID    uuid.UUID
 	UserID    uuid.UUID

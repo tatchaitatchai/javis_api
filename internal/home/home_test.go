@@ -86,6 +86,7 @@ func (a *api) do(method, path, token, body string) response {
 type person struct {
 	token string
 	id    string
+	phone string
 }
 
 func (a *api) signIn() person {
@@ -102,7 +103,7 @@ func (a *api) signIn() person {
 	token, _ := body["token"].(string)
 	user, _ := body["user"].(map[string]any)
 	id, _ := user["id"].(string)
-	return person{token: token, id: id}
+	return person{token: token, id: id, phone: phone}
 }
 
 func (a *api) createHome(owner person) string {

@@ -244,8 +244,11 @@ Executed on 2026-11-02 with go1.27.3 (via `toolchain`) on macOS arm64:
   `POST /health/live` 405 with `Allow: GET`; `/v1/homes/abc` 404; after
   stopping the database `/health/ready` 503 `database_unavailable`. The access
   log showed route templates only and did not contain the database password.
-- Not run: the Compose `db` service (its `postgres:17-alpine` image pull did not
-  finish within 10 minutes and was stopped), graceful-shutdown exit status.
+- Compose `db` first started on 2026-11-05 and reported healthy on PostgreSQL
+  17.10. It publishes `127.0.0.1:5433` because 5432 was taken on the development
+  machine, and uses `postgres:17` because the `postgres:17-alpine` pull did not
+  finish.
+- Not run: graceful-shutdown exit status.
 
 ## Current status
 

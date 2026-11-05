@@ -1,8 +1,8 @@
 # JAVIS API
 
 Go/PostgreSQL API for JAVIS Home. The current Flutter UI uses local mock data;
-it does not call this API yet. Health, phone OTP sign-in, homes and zones routes
-are implemented. The package
+it does not call this API yet. Health, phone OTP sign-in, homes, zones, members
+and invitation routes are implemented. The package
 layout, dependency rules and library choices are defined in
 `specs/002-api-architecture.md`.
 
@@ -24,7 +24,8 @@ make migrate-up
 go run ./cmd/api
 ```
 
-`.env` is local and ignored. Compose reads it automatically; the Go process reads
+Compose publishes PostgreSQL on `127.0.0.1:5433`, so `DATABASE_URL` must use that
+port. `.env` is local and ignored. Compose reads it automatically; the Go process reads
 the environment only, so export it as shown. URL-encode special characters in
 the password inside `DATABASE_URL`. The example uses disabled TLS for loopback
 development; use TLS and managed secrets for a production database.
@@ -78,7 +79,7 @@ internal/config/          Environment validation
 internal/httpapi/         Router, middleware, contract server, health
 internal/httpapi/openapi/ Generated code (make generate; do not edit)
 internal/auth/            Phone OTP, sessions, the signed-in account
-internal/home/            Homes, zones and role checks
+internal/home/            Homes, zones, members, invitations and role checks
 internal/testdb/          Real PostgreSQL for database tests
 pkg/httpx/                JSON/error envelope and HTTP middleware
 pkg/postgres/             Pool construction and transactions
