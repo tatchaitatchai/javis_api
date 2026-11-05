@@ -1,0 +1,11 @@
+# Generates Go server types for internal/httpapi from api/openapi.yaml.
+# Run through `make generate`; the generator version is pinned in the Makefile.
+package: openapi
+output: internal/httpapi/openapi/openapi.gen.go
+generate:
+  models: true
+  chi-server: true
+  strict-server: true
+compatibility:
+  # Keep enum constants unique as the contract grows (LivenessStatusStatusOk, not Ok).
+  always-prefix-enum-values: true

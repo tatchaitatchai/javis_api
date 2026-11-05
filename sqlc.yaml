@@ -1,0 +1,32 @@
+# Generates typed queries per module from plain SQL. Run through `make generate`.
+# Each module owns its queries.sql and a generated package; all share migrations/.
+version: "2"
+sql:
+  - engine: postgresql
+    schema: migrations
+    queries: internal/auth/queries.sql
+    gen:
+      go:
+        package: authdb
+        out: internal/auth/authdb
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: uuid
+            go_type: github.com/google/uuid.UUID
+          - db_type: timestamptz
+            go_type: time.Time
+  - engine: postgresql
+    schema: migrations
+    queries: internal/home/queries.sql
+    gen:
+      go:
+        package: homedb
+        out: internal/home/homedb
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: uuid
+            go_type: github.com/google/uuid.UUID
+          - db_type: timestamptz
+            go_type: time.Time

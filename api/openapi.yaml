@@ -1,0 +1,598 @@
+openapi: 3.0.3
+info:
+  title: JAVIS Home API
+  version: 0.1.0
+  description: |
+    Contract for the JAVIS Home API. This file is the source of truth: Go server
+    types are generated from it (`make generate`) and clients may generate from it.
+    Product routes live under `/v1`; health routes are unversioned.
+tags:
+  - name: health
+    description: Process liveness and database readiness
+  - name: auth
+    description: Phone OTP sign-in, sessions and the signed-in account
+  - name: homes
+    description: Homes and zones. A non-member always receives 404.
+paths:
+  /health/live:
+    get:
+      operationId: getLiveness
+      tags: [health]
+      summary: Process liveness
+      description: Succeeds while the process serves HTTP. Never touches the database.
+      responses:
+        "200":
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LivenessStatus"
+  /health/ready:
+    get:
+      operationId: getReadiness
+      tags: [health]
+      summary: Database readiness
+      description: Pings PostgreSQL with a bounded timeout. Does not inspect migrations.
+      responses:
+        "200":
+          description: Database responded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessStatus"
+        "503":
+          description: Database unavailable (`database_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/auth/otp/request:
+    post:
+      operationId: requestOtp
+      tags: [auth]
+      summary: Send a sign-in code
+      description: |
+        Answers the same whether or not the number has an account. `debug_code`
+        is present only when the server runs in OTP debug mode.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequest"
+      responses:
+        "202":
+          description: Code issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpChallenge"
+        "400":
+          description: Not a Thai mobile number (`invalid_phone`) or a malformed request (`invalid_request`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Send limit reached (`rate_limited`)
+          headers:
+            Retry-After:
+              required: true
+              description: Seconds until another request can succeed
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The SMS could not be sent (`sms_unavailable`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/auth/otp/verify:
+    post:
+      operationId: verifyOtp
+      tags: [auth]
+      summary: Exchange a code for a session
+      description: The first successful verification creates the account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerification"
+      responses:
+        "200":
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: Malformed request (`invalid_request`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Wrong, expired or used code (`invalid_code`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many wrong attempts on this code (`too_many_attempts`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Revoke the current session
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Signed out
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: The signed-in account
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateMe
+      tags: [auth]
+      summary: Set the account name
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Name is empty, too long or invalid (`invalid_name`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes:
+    get:
+      operationId: listHomes
+      tags: [homes]
+      summary: Homes the caller belongs to
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Homes, oldest membership first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeList"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createHome
+      tags: [homes]
+      summary: Create a home with its zones; the caller becomes the owner
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomeCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Home"
+        "400":
+          description: Invalid name or zone (`invalid_home`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The caller owns the maximum number of homes (`home_limit_reached`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes/{homeId}:
+    get:
+      operationId: getHome
+      tags: [homes]
+      summary: A home with its zones
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+      responses:
+        "200":
+          description: Home
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Home"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not a home the caller belongs to (`home_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateHome
+      tags: [homes]
+      summary: Rename a home (admin or owner)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HomeUpdate"
+      responses:
+        "200":
+          description: Updated home
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Home"
+        "400":
+          description: Invalid name (`invalid_home`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not a home the caller belongs to (`home_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteHome
+      tags: [homes]
+      summary: Delete a home and everything in it (owner only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not a home the caller belongs to (`home_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes/{homeId}/zones:
+    post:
+      operationId: addZone
+      tags: [homes]
+      summary: Add a zone (admin or owner)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ZoneInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Zone"
+        "400":
+          description: Not exactly one valid preset_key or name (`invalid_zone`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not a home the caller belongs to (`home_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The home has the maximum number of zones (`zone_limit_reached`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  parameters:
+    homeId:
+      name: homeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    HomeRole:
+      type: string
+      enum: [owner, admin, member]
+    Zone:
+      type: object
+      required: [id, preset_key, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        preset_key:
+          type: string
+          nullable: true
+          description: Translated by the client. Null when the zone has a typed name.
+        name:
+          type: string
+          nullable: true
+          description: Shown exactly as typed. Null when the zone is a preset.
+    ZoneInput:
+      type: object
+      description: Exactly one of preset_key or name
+      properties:
+        preset_key:
+          type: string
+          description: One of Living room, Bedroom, Kitchen, Front yard, Office, Bathroom, Kids room
+        name:
+          type: string
+          description: 1 to 60 characters after trimming
+    Home:
+      type: object
+      required: [id, name, role, zones]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/HomeRole"
+        zones:
+          type: array
+          items:
+            $ref: "#/components/schemas/Zone"
+    HomeSummary:
+      type: object
+      required: [id, name, role, zone_count, member_count]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        role:
+          $ref: "#/components/schemas/HomeRole"
+        zone_count:
+          type: integer
+        member_count:
+          type: integer
+    HomeList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HomeSummary"
+    HomeCreate:
+      type: object
+      required: [name, zones]
+      properties:
+        name:
+          type: string
+          description: 1 to 60 characters after trimming
+        zones:
+          type: array
+          items:
+            $ref: "#/components/schemas/ZoneInput"
+    HomeUpdate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: 1 to 60 characters after trimming
+    OtpRequest:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          description: Thai mobile number in E.164 form
+          example: "+66812345678"
+    OtpChallenge:
+      type: object
+      required: [resend_after_seconds, expires_in_seconds]
+      properties:
+        resend_after_seconds:
+          type: integer
+        expires_in_seconds:
+          type: integer
+        debug_code:
+          type: string
+          description: The code itself; only in OTP debug mode, never in production
+    OtpVerification:
+      type: object
+      required: [phone, code]
+      properties:
+        phone:
+          type: string
+          example: "+66812345678"
+        code:
+          type: string
+          description: Six digits
+    Session:
+      type: object
+      required: [token, expires_at, user]
+      properties:
+        token:
+          type: string
+          description: Bearer token; shown once and stored only as a hash on the server
+        expires_at:
+          type: string
+          format: date-time
+        user:
+          $ref: "#/components/schemas/User"
+    User:
+      type: object
+      required: [id, phone, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        phone:
+          type: string
+        name:
+          type: string
+          nullable: true
+          description: Null until the profile step
+    UserUpdate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: 1 to 60 characters after trimming
+    LivenessStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+    ReadinessStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ready]
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/Error"
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable snake_case error code for clients to branch on
+          example: not_found
+        message:
+          type: string
+          description: Human-readable message; never contains secrets or internal errors
