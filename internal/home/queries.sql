@@ -27,7 +27,7 @@ WHERE m.user_id = $1
 ORDER BY m.created_at, h.id;
 
 -- name: GetHome :one
-SELECT h.id, h.name, m.role
+SELECT h.id, h.name, m.role, m.can_unlock
 FROM javis.home_members m
 JOIN javis.homes h ON h.id = m.home_id
 WHERE m.user_id = $1 AND m.home_id = $2;

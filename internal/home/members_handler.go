@@ -9,21 +9,21 @@ import (
 )
 
 func inviteNotFound() openapi.ErrorResponse {
-	return apiError("invite_not_found", "This invitation is no longer available")
+	return openapi.NewError("invite_not_found", "This invitation is no longer available")
 }
 
 func memberNotFound() openapi.ErrorResponse {
-	return apiError("member_not_found", "This person is not in the home")
+	return openapi.NewError("member_not_found", "This person is not in the home")
 }
 
 func (h *Handler) ListMembers(ctx context.Context, request openapi.ListMembersRequestObject) (openapi.ListMembersResponseObject, error) {
 	principal, ok := auth.PrincipalFrom(ctx)
 	if !ok {
-		return openapi.ListMembers401JSONResponse(unauthorized()), nil
+		return openapi.ListMembers401JSONResponse(openapi.Unauthorized()), nil
 	}
 	roster, err := h.service.ListMembers(ctx, principal.UserID, request.HomeId)
 	if errors.Is(err, ErrHomeNotFound) {
-		return openapi.ListMembers404JSONResponse(notFound()), nil
+		return openapi.ListMembers404JSONResponse(openapi.HomeNotFound()), nil
 	}
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func (h *Handler) ListMembers(ctx context.Context, request openapi.ListMembersRe
 func (h *Handler) UpdateMember(ctx context.Context, request openapi.UpdateMemberRequestObject) (openapi.UpdateMemberResponseObject, error) {
 	principal, ok := auth.PrincipalFrom(ctx)
 	if !ok {
-		return openapi.UpdateMember401JSONResponse(unauthorized()), nil
+		return openapi.UpdateMember401JSONResponse(openapi.Unauthorized()), nil
 	}
 	change := MemberChange{CanUnlock: request.Body.CanUnlock}
 	if request.Body.Role != nil {
@@ -56,11 +56,11 @@ func (h *Handler) UpdateMember(ctx context.Context, request openapi.UpdateMember
 	case err == nil:
 		return openapi.UpdateMember200JSONResponse(toAPIMember(member)), nil
 	case errors.Is(err, ErrInvalidMemberUpdate):
-		return openapi.UpdateMember400JSONResponse(apiError("invalid_member_update", "Send a valid role or unlock right")), nil
+		return openapi.UpdateMember400JSONResponse(openapi.NewError("invalid_member_update", "Send a valid role or unlock right")), nil
 	case errors.Is(err, ErrForbidden):
-		return openapi.UpdateMember403JSONResponse(forbidden()), nil
+		return openapi.UpdateMember403JSONResponse(openapi.Forbidden()), nil
 	case errors.Is(err, ErrHomeNotFound):
-		return openapi.UpdateMember404JSONResponse(notFound()), nil
+		return openapi.UpdateMember404JSONResponse(openapi.HomeNotFound()), nil
 	case errors.Is(err, ErrMemberNotFound):
 		return openapi.UpdateMember404JSONResponse(memberNotFound()), nil
 	}
@@ -70,16 +70,16 @@ func (h *Handler) UpdateMember(ctx context.Context, request openapi.UpdateMember
 func (h *Handler) RemoveMember(ctx context.Context, request openapi.RemoveMemberRequestObject) (openapi.RemoveMemberResponseObject, error) {
 	principal, ok := auth.PrincipalFrom(ctx)
 	if !ok {
-		return openapi.RemoveMember401JSONResponse(unauthorized()), nil
+		return openapi.RemoveMember401JSONResponse(openapi.Unauthorized()), nil
 	}
 	err := h.service.RemoveMember(ctx, principal.UserID, request.HomeId, request.UserId)
 	switch {
 	case err == nil:
 		return openapi.RemoveMember204Response{}, nil
 	case errors.Is(err, ErrForbidden):
-		return openapi.RemoveMember403JSONResponse(forbidden()), nil
+		return openapi.RemoveMember403JSONResponse(openapi.Forbidden()), nil
 	case errors.Is(err, ErrHomeNotFound):
-		return openapi.RemoveMember404JSONResponse(notFound()), nil
+		return openapi.RemoveMember404JSONResponse(openapi.HomeNotFound()), nil
 	case errors.Is(err, ErrMemberNotFound):
 		return openapi.RemoveMember404JSONResponse(memberNotFound()), nil
 	}
@@ -89,7 +89,7 @@ func (h *Handler) RemoveMember(ctx context.Context, request openapi.RemoveMember
 func (h *Handler) CreateInvite(ctx context.Context, request openapi.CreateInviteRequestObject) (openapi.CreateInviteResponseObject, error) {
 	principal, ok := auth.PrincipalFrom(ctx)
 	if !ok {
-		return openapi.CreateInvite401JSONResponse(unauthorized()), nil
+		return openapi.CreateInvite401JSONResponse(openapi.Unauthorized()), nil
 	}
 	invite, err := h.service.CreateInvite(ctx, principal.UserID, request.HomeId, InviteRequest{
 		Phone:     request.Body.Phone,
@@ -100,19 +100,19 @@ func (h *Handler) CreateInvite(ctx context.Context, request openapi.CreateInvite
 	case err == nil:
 		return openapi.CreateInvite201JSONResponse(toAPIInvite(invite)), nil
 	case errors.Is(err, ErrInvalidPhone):
-		return openapi.CreateInvite400JSONResponse(apiError("invalid_phone", "Enter a valid Thai mobile number")), nil
+		return openapi.CreateInvite400JSONResponse(openapi.NewError("invalid_phone", "Enter a valid Thai mobile number")), nil
 	case errors.Is(err, ErrInvalidRole):
-		return openapi.CreateInvite400JSONResponse(apiError("invalid_role", "Role must be admin or member")), nil
+		return openapi.CreateInvite400JSONResponse(openapi.NewError("invalid_role", "Role must be admin or member")), nil
 	case errors.Is(err, ErrForbidden):
-		return openapi.CreateInvite403JSONResponse(forbidden()), nil
+		return openapi.CreateInvite403JSONResponse(openapi.Forbidden()), nil
 	case errors.Is(err, ErrHomeNotFound):
-		return openapi.CreateInvite404JSONResponse(notFound()), nil
+		return openapi.CreateInvite404JSONResponse(openapi.HomeNotFound()), nil
 	case errors.Is(err, ErrAlreadyMember):
-		return openapi.CreateInvite409JSONResponse(apiError("already_member", "This number is already in the home")), nil
+		return openapi.CreateInvite409JSONResponse(openapi.NewError("already_member", "This number is already in the home")), nil
 	case errors.Is(err, ErrAlreadyInvited):
-		return openapi.CreateInvite409JSONResponse(apiError("already_invited", "This number already has an open invitation")), nil
+		return openapi.CreateInvite409JSONResponse(openapi.NewError("already_invited", "This number already has an open invitation")), nil
 	case errors.Is(err, ErrMemberLimitReached):
-		return openapi.CreateInvite409JSONResponse(apiError("member_limit_reached", "This home has the maximum number of people")), nil
+		return openapi.CreateInvite409JSONResponse(openapi.NewError("member_limit_reached", "This home has the maximum number of people")), nil
 	}
 	return nil, err
 }
@@ -120,16 +120,16 @@ func (h *Handler) CreateInvite(ctx context.Context, request openapi.CreateInvite
 func (h *Handler) RevokeInvite(ctx context.Context, request openapi.RevokeInviteRequestObject) (openapi.RevokeInviteResponseObject, error) {
 	principal, ok := auth.PrincipalFrom(ctx)
 	if !ok {
-		return openapi.RevokeInvite401JSONResponse(unauthorized()), nil
+		return openapi.RevokeInvite401JSONResponse(openapi.Unauthorized()), nil
 	}
 	err := h.service.RevokeInvite(ctx, principal.UserID, request.HomeId, request.InviteId)
 	switch {
 	case err == nil:
 		return openapi.RevokeInvite204Response{}, nil
 	case errors.Is(err, ErrForbidden):
-		return openapi.RevokeInvite403JSONResponse(forbidden()), nil
+		return openapi.RevokeInvite403JSONResponse(openapi.Forbidden()), nil
 	case errors.Is(err, ErrHomeNotFound):
-		return openapi.RevokeInvite404JSONResponse(notFound()), nil
+		return openapi.RevokeInvite404JSONResponse(openapi.HomeNotFound()), nil
 	case errors.Is(err, ErrInviteNotFound):
 		return openapi.RevokeInvite404JSONResponse(inviteNotFound()), nil
 	}
@@ -139,7 +139,7 @@ func (h *Handler) RevokeInvite(ctx context.Context, request openapi.RevokeInvite
 func (h *Handler) ListReceivedInvites(ctx context.Context, _ openapi.ListReceivedInvitesRequestObject) (openapi.ListReceivedInvitesResponseObject, error) {
 	principal, ok := auth.PrincipalFrom(ctx)
 	if !ok {
-		return openapi.ListReceivedInvites401JSONResponse(unauthorized()), nil
+		return openapi.ListReceivedInvites401JSONResponse(openapi.Unauthorized()), nil
 	}
 	invites, err := h.service.ReceivedInvites(ctx, principal.UserID)
 	if err != nil {
@@ -162,7 +162,7 @@ func (h *Handler) ListReceivedInvites(ctx context.Context, _ openapi.ListReceive
 func (h *Handler) AcceptInvite(ctx context.Context, request openapi.AcceptInviteRequestObject) (openapi.AcceptInviteResponseObject, error) {
 	principal, ok := auth.PrincipalFrom(ctx)
 	if !ok {
-		return openapi.AcceptInvite401JSONResponse(unauthorized()), nil
+		return openapi.AcceptInvite401JSONResponse(openapi.Unauthorized()), nil
 	}
 	home, err := h.service.AcceptInvite(ctx, principal.UserID, request.InviteId)
 	if errors.Is(err, ErrInviteNotFound) {
@@ -177,7 +177,7 @@ func (h *Handler) AcceptInvite(ctx context.Context, request openapi.AcceptInvite
 func (h *Handler) DeclineInvite(ctx context.Context, request openapi.DeclineInviteRequestObject) (openapi.DeclineInviteResponseObject, error) {
 	principal, ok := auth.PrincipalFrom(ctx)
 	if !ok {
-		return openapi.DeclineInvite401JSONResponse(unauthorized()), nil
+		return openapi.DeclineInvite401JSONResponse(openapi.Unauthorized()), nil
 	}
 	err := h.service.DeclineInvite(ctx, principal.UserID, request.InviteId)
 	if errors.Is(err, ErrInviteNotFound) {

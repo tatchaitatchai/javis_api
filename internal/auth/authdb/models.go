@@ -11,6 +11,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type JavisDevice struct {
+	ID          uuid.UUID
+	HomeID      uuid.UUID
+	ZoneID      pgtype.UUID
+	Provider    string
+	ExternalRef string
+	Kind        string
+	Name        *string
+	CreatedBy   uuid.UUID
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type JavisHome struct {
 	ID        uuid.UUID
 	Name      string
@@ -49,6 +62,18 @@ type JavisOtpChallenge struct {
 	ExpiresAt  time.Time
 	ConsumedAt pgtype.Timestamptz
 	CreatedAt  time.Time
+}
+
+type JavisScene struct {
+	ID        uuid.UUID
+	HomeID    uuid.UUID
+	Icon      string
+	PresetKey *string
+	Name      *string
+	Actions   []byte
+	LastRunAt pgtype.Timestamptz
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type JavisSession struct {

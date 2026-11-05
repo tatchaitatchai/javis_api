@@ -15,6 +15,10 @@ tags:
     description: Homes and zones. A non-member always receives 404.
   - name: members
     description: People in a home, invitations and their answers.
+  - name: devices
+    description: Which home a device belongs to. Live state stays with the provider.
+  - name: scenes
+    description: Saved scenes. Clients run them and report the run.
 paths:
   /health/live:
     get:
@@ -356,6 +360,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Devices are still registered to this home (`home_has_devices`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /v1/homes/{homeId}/zones:
     post:
       operationId: addZone
@@ -652,6 +662,353 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes/{homeId}/devices:
+    get:
+      operationId: listDevices
+      tags: [devices]
+      summary: Devices registered to a home
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+      responses:
+        "200":
+          description: Devices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceList"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not a home the caller belongs to (`home_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: claimDevice
+      tags: [devices]
+      summary: Register a paired device to a home (admin or owner)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceClaim"
+      responses:
+        "200":
+          description: Already registered to this home
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          description: Unknown provider or kind, or an invalid name, zone or reference (`invalid_device`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not a home the caller belongs to (`home_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict (`device_claimed` or `device_limit_reached`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes/{homeId}/devices/{deviceId}:
+    patch:
+      operationId: updateDevice
+      tags: [devices]
+      summary: Rename a device or move it to a zone (admin or owner)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+        - $ref: "#/components/parameters/deviceId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          description: No valid field to change (`invalid_device`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Unknown home (`home_not_found`) or device (`device_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: removeDevice
+      tags: [devices]
+      summary: Remove a device from a home (admin or owner)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+        - $ref: "#/components/parameters/deviceId"
+      responses:
+        "204":
+          description: Removed
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Unknown home (`home_not_found`) or device (`device_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes/{homeId}/scenes:
+    get:
+      operationId: listScenes
+      tags: [scenes]
+      summary: Scenes of a home
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+      responses:
+        "200":
+          description: Scenes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SceneList"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not a home the caller belongs to (`home_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createScene
+      tags: [scenes]
+      summary: Add a scene (admin or owner)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SceneInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scene"
+        "400":
+          description: The scene is not valid (`invalid_scene`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not a home the caller belongs to (`home_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The home has the maximum number of scenes (`scene_limit_reached`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes/{homeId}/scenes/{sceneId}:
+    put:
+      operationId: updateScene
+      tags: [scenes]
+      summary: Replace a scene (admin or owner)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+        - $ref: "#/components/parameters/sceneId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SceneInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scene"
+        "400":
+          description: The scene is not valid (`invalid_scene`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Unknown home (`home_not_found`) or scene (`scene_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteScene
+      tags: [scenes]
+      summary: Delete a scene (admin or owner)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+        - $ref: "#/components/parameters/sceneId"
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Role does not allow this (`forbidden`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Unknown home (`home_not_found`) or scene (`scene_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/homes/{homeId}/scenes/{sceneId}/runs:
+    post:
+      operationId: recordSceneRun
+      tags: [scenes]
+      summary: Record that a member ran a scene on their device
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/homeId"
+        - $ref: "#/components/parameters/sceneId"
+      responses:
+        "200":
+          description: The scene with its new last run time
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scene"
+        "401":
+          description: Missing or invalid session (`unauthorized`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Unknown home (`home_not_found`) or scene (`scene_not_found`)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   parameters:
     homeId:
@@ -670,6 +1027,20 @@ components:
         format: uuid
     inviteId:
       name: inviteId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    deviceId:
+      name: deviceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    sceneId:
+      name: sceneId
       in: path
       required: true
       schema:
@@ -710,7 +1081,7 @@ components:
           description: 1 to 60 characters after trimming
     Home:
       type: object
-      required: [id, name, role, zones]
+      required: [id, name, role, can_unlock, zones]
       properties:
         id:
           type: string
@@ -719,6 +1090,9 @@ components:
           type: string
         role:
           $ref: "#/components/schemas/HomeRole"
+        can_unlock:
+          type: boolean
+          description: Whether the caller may unlock this home's door
         zones:
           type: array
           items:
@@ -857,6 +1231,139 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ReceivedInvite"
+    Device:
+      type: object
+      required: [id, provider, external_ref, kind, name, zone_id]
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider:
+          type: string
+          enum: [tuya]
+        external_ref:
+          type: string
+          description: The provider's device id
+        kind:
+          type: string
+          enum: [light]
+        name:
+          type: string
+          nullable: true
+        zone_id:
+          type: string
+          format: uuid
+          nullable: true
+    DeviceList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Device"
+    DeviceClaim:
+      type: object
+      required: [provider, external_ref, kind]
+      properties:
+        provider:
+          type: string
+        external_ref:
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+        zone_id:
+          type: string
+          format: uuid
+    DeviceUpdate:
+      type: object
+      description: Send at least one field.
+      properties:
+        name:
+          type: string
+        zone_id:
+          type: string
+          format: uuid
+    SceneTarget:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [device, zone, others, all]
+        key:
+          type: string
+          description: Device id or zone preset key; only for `device` and `zone`
+    SceneAction:
+      type: object
+      required: [type]
+      description: |
+        `light` needs `target` and `is_on`. `lock_check` has no other field and
+        never unlocks.
+      properties:
+        type:
+          type: string
+          enum: [light, lock_check]
+        target:
+          $ref: "#/components/schemas/SceneTarget"
+        is_on:
+          type: boolean
+        brightness:
+          type: number
+          format: double
+        temperature:
+          type: integer
+    SceneInput:
+      type: object
+      required: [icon, actions]
+      description: Send exactly one of `preset_key` or `name`.
+      properties:
+        icon:
+          type: string
+          enum: [moon, home, leave, sunrise, sparkle]
+        preset_key:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SceneAction"
+    Scene:
+      type: object
+      required: [id, icon, preset_key, name, actions, last_run_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        icon:
+          type: string
+        preset_key:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SceneAction"
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+    SceneList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Scene"
     OtpRequest:
       type: object
       required: [phone]

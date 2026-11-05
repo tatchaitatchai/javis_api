@@ -16,6 +16,36 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for DeviceKind.
+const (
+	DeviceKindLight DeviceKind = "light"
+)
+
+// Valid indicates whether the value is a known member of the DeviceKind enum.
+func (e DeviceKind) Valid() bool {
+	switch e {
+	case DeviceKindLight:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DeviceProvider.
+const (
+	DeviceProviderTuya DeviceProvider = "tuya"
+)
+
+// Valid indicates whether the value is a known member of the DeviceProvider enum.
+func (e DeviceProvider) Valid() bool {
+	switch e {
+	case DeviceProviderTuya:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HomeRole.
 const (
 	HomeRoleAdmin  HomeRole = "admin"
@@ -85,6 +115,112 @@ func (e ReadinessStatusStatus) Valid() bool {
 	}
 }
 
+// Defines values for SceneActionType.
+const (
+	SceneActionTypeLight     SceneActionType = "light"
+	SceneActionTypeLockCheck SceneActionType = "lock_check"
+)
+
+// Valid indicates whether the value is a known member of the SceneActionType enum.
+func (e SceneActionType) Valid() bool {
+	switch e {
+	case SceneActionTypeLight:
+		return true
+	case SceneActionTypeLockCheck:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SceneInputIcon.
+const (
+	SceneInputIconHome    SceneInputIcon = "home"
+	SceneInputIconLeave   SceneInputIcon = "leave"
+	SceneInputIconMoon    SceneInputIcon = "moon"
+	SceneInputIconSparkle SceneInputIcon = "sparkle"
+	SceneInputIconSunrise SceneInputIcon = "sunrise"
+)
+
+// Valid indicates whether the value is a known member of the SceneInputIcon enum.
+func (e SceneInputIcon) Valid() bool {
+	switch e {
+	case SceneInputIconHome:
+		return true
+	case SceneInputIconLeave:
+		return true
+	case SceneInputIconMoon:
+		return true
+	case SceneInputIconSparkle:
+		return true
+	case SceneInputIconSunrise:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SceneTargetKind.
+const (
+	SceneTargetKindAll    SceneTargetKind = "all"
+	SceneTargetKindDevice SceneTargetKind = "device"
+	SceneTargetKindOthers SceneTargetKind = "others"
+	SceneTargetKindZone   SceneTargetKind = "zone"
+)
+
+// Valid indicates whether the value is a known member of the SceneTargetKind enum.
+func (e SceneTargetKind) Valid() bool {
+	switch e {
+	case SceneTargetKindAll:
+		return true
+	case SceneTargetKindDevice:
+		return true
+	case SceneTargetKindOthers:
+		return true
+	case SceneTargetKindZone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Device defines model for Device.
+type Device struct {
+	// ExternalRef The provider's device id
+	ExternalRef string              `json:"external_ref"`
+	Id          openapi_types.UUID  `json:"id"`
+	Kind        DeviceKind          `json:"kind"`
+	Name        *string             `json:"name"`
+	Provider    DeviceProvider      `json:"provider"`
+	ZoneId      *openapi_types.UUID `json:"zone_id"`
+}
+
+// DeviceKind defines model for Device.Kind.
+type DeviceKind string
+
+// DeviceProvider defines model for Device.Provider.
+type DeviceProvider string
+
+// DeviceClaim defines model for DeviceClaim.
+type DeviceClaim struct {
+	ExternalRef string              `json:"external_ref"`
+	Kind        string              `json:"kind"`
+	Name        *string             `json:"name,omitempty"`
+	Provider    string              `json:"provider"`
+	ZoneId      *openapi_types.UUID `json:"zone_id,omitempty"`
+}
+
+// DeviceList defines model for DeviceList.
+type DeviceList struct {
+	Items []Device `json:"items"`
+}
+
+// DeviceUpdate Send at least one field.
+type DeviceUpdate struct {
+	Name   *string             `json:"name,omitempty"`
+	ZoneId *openapi_types.UUID `json:"zone_id,omitempty"`
+}
+
 // Error defines model for Error.
 type Error struct {
 	// Code Stable snake_case error code for clients to branch on
@@ -103,10 +239,12 @@ type ErrorResponse struct {
 
 // Home defines model for Home.
 type Home struct {
-	Id    openapi_types.UUID `json:"id"`
-	Name  string             `json:"name"`
-	Role  HomeRole           `json:"role"`
-	Zones []Zone             `json:"zones"`
+	// CanUnlock Whether the caller may unlock this home's door
+	CanUnlock bool               `json:"can_unlock"`
+	Id        openapi_types.UUID `json:"id"`
+	Name      string             `json:"name"`
+	Role      HomeRole           `json:"role"`
+	Zones     []Zone             `json:"zones"`
 }
 
 // HomeCreate defines model for HomeCreate.
@@ -240,6 +378,55 @@ type ReceivedInviteList struct {
 	Items []ReceivedInvite `json:"items"`
 }
 
+// Scene defines model for Scene.
+type Scene struct {
+	Actions   []SceneAction      `json:"actions"`
+	Icon      string             `json:"icon"`
+	Id        openapi_types.UUID `json:"id"`
+	LastRunAt *time.Time         `json:"last_run_at"`
+	Name      *string            `json:"name"`
+	PresetKey *string            `json:"preset_key"`
+}
+
+// SceneAction `light` needs `target` and `is_on`. `lock_check` has no other field and
+// never unlocks.
+type SceneAction struct {
+	Brightness  *float64        `json:"brightness,omitempty"`
+	IsOn        *bool           `json:"is_on,omitempty"`
+	Target      *SceneTarget    `json:"target,omitempty"`
+	Temperature *int            `json:"temperature,omitempty"`
+	Type        SceneActionType `json:"type"`
+}
+
+// SceneActionType defines model for SceneAction.Type.
+type SceneActionType string
+
+// SceneInput Send exactly one of `preset_key` or `name`.
+type SceneInput struct {
+	Actions   []SceneAction  `json:"actions"`
+	Icon      SceneInputIcon `json:"icon"`
+	Name      *string        `json:"name,omitempty"`
+	PresetKey *string        `json:"preset_key,omitempty"`
+}
+
+// SceneInputIcon defines model for SceneInput.Icon.
+type SceneInputIcon string
+
+// SceneList defines model for SceneList.
+type SceneList struct {
+	Items []Scene `json:"items"`
+}
+
+// SceneTarget defines model for SceneTarget.
+type SceneTarget struct {
+	// Key Device id or zone preset key; only for `device` and `zone`
+	Key  *string         `json:"key,omitempty"`
+	Kind SceneTargetKind `json:"kind"`
+}
+
+// SceneTargetKind defines model for SceneTarget.Kind.
+type SceneTargetKind string
+
 // Session defines model for Session.
 type Session struct {
 	ExpiresAt time.Time `json:"expires_at"`
@@ -284,11 +471,17 @@ type ZoneInput struct {
 	PresetKey *string `json:"preset_key,omitempty"`
 }
 
+// DeviceId defines model for deviceId.
+type DeviceId = openapi_types.UUID
+
 // HomeId defines model for homeId.
 type HomeId = openapi_types.UUID
 
 // InviteId defines model for inviteId.
 type InviteId = openapi_types.UUID
+
+// SceneId defines model for sceneId.
+type SceneId = openapi_types.UUID
 
 // UserId defines model for userId.
 type UserId = openapi_types.UUID
@@ -305,11 +498,23 @@ type CreateHomeJSONRequestBody = HomeCreate
 // UpdateHomeJSONRequestBody defines body for UpdateHome for application/json ContentType.
 type UpdateHomeJSONRequestBody = HomeUpdate
 
+// ClaimDeviceJSONRequestBody defines body for ClaimDevice for application/json ContentType.
+type ClaimDeviceJSONRequestBody = DeviceClaim
+
+// UpdateDeviceJSONRequestBody defines body for UpdateDevice for application/json ContentType.
+type UpdateDeviceJSONRequestBody = DeviceUpdate
+
 // CreateInviteJSONRequestBody defines body for CreateInvite for application/json ContentType.
 type CreateInviteJSONRequestBody = InviteCreate
 
 // UpdateMemberJSONRequestBody defines body for UpdateMember for application/json ContentType.
 type UpdateMemberJSONRequestBody = MemberUpdate
+
+// CreateSceneJSONRequestBody defines body for CreateScene for application/json ContentType.
+type CreateSceneJSONRequestBody = SceneInput
+
+// UpdateSceneJSONRequestBody defines body for UpdateScene for application/json ContentType.
+type UpdateSceneJSONRequestBody = SceneInput
 
 // AddZoneJSONRequestBody defines body for AddZone for application/json ContentType.
 type AddZoneJSONRequestBody = ZoneInput
@@ -349,6 +554,18 @@ type ServerInterface interface {
 	// UpdateHome Rename a home (admin or owner)
 	// (PATCH /v1/homes/{homeId})
 	UpdateHome(w http.ResponseWriter, r *http.Request, homeId HomeId)
+	// ListDevices Devices registered to a home
+	// (GET /v1/homes/{homeId}/devices)
+	ListDevices(w http.ResponseWriter, r *http.Request, homeId HomeId)
+	// ClaimDevice Register a paired device to a home (admin or owner)
+	// (POST /v1/homes/{homeId}/devices)
+	ClaimDevice(w http.ResponseWriter, r *http.Request, homeId HomeId)
+	// RemoveDevice Remove a device from a home (admin or owner)
+	// (DELETE /v1/homes/{homeId}/devices/{deviceId})
+	RemoveDevice(w http.ResponseWriter, r *http.Request, homeId HomeId, deviceId DeviceId)
+	// UpdateDevice Rename a device or move it to a zone (admin or owner)
+	// (PATCH /v1/homes/{homeId}/devices/{deviceId})
+	UpdateDevice(w http.ResponseWriter, r *http.Request, homeId HomeId, deviceId DeviceId)
 	// CreateInvite Invite a mobile number to a home
 	// (POST /v1/homes/{homeId}/invites)
 	CreateInvite(w http.ResponseWriter, r *http.Request, homeId HomeId)
@@ -364,6 +581,21 @@ type ServerInterface interface {
 	// UpdateMember Change a member's role or unlock right (owner)
 	// (PATCH /v1/homes/{homeId}/members/{userId})
 	UpdateMember(w http.ResponseWriter, r *http.Request, homeId HomeId, userId UserId)
+	// ListScenes Scenes of a home
+	// (GET /v1/homes/{homeId}/scenes)
+	ListScenes(w http.ResponseWriter, r *http.Request, homeId HomeId)
+	// CreateScene Add a scene (admin or owner)
+	// (POST /v1/homes/{homeId}/scenes)
+	CreateScene(w http.ResponseWriter, r *http.Request, homeId HomeId)
+	// DeleteScene Delete a scene (admin or owner)
+	// (DELETE /v1/homes/{homeId}/scenes/{sceneId})
+	DeleteScene(w http.ResponseWriter, r *http.Request, homeId HomeId, sceneId SceneId)
+	// UpdateScene Replace a scene (admin or owner)
+	// (PUT /v1/homes/{homeId}/scenes/{sceneId})
+	UpdateScene(w http.ResponseWriter, r *http.Request, homeId HomeId, sceneId SceneId)
+	// RecordSceneRun Record that a member ran a scene on their device
+	// (POST /v1/homes/{homeId}/scenes/{sceneId}/runs)
+	RecordSceneRun(w http.ResponseWriter, r *http.Request, homeId HomeId, sceneId SceneId)
 	// AddZone Add a zone (admin or owner)
 	// (POST /v1/homes/{homeId}/zones)
 	AddZone(w http.ResponseWriter, r *http.Request, homeId HomeId)
@@ -448,6 +680,30 @@ func (_ Unimplemented) UpdateHome(w http.ResponseWriter, r *http.Request, homeId
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// ListDevices Devices registered to a home
+// (GET /v1/homes/{homeId}/devices)
+func (_ Unimplemented) ListDevices(w http.ResponseWriter, r *http.Request, homeId HomeId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ClaimDevice Register a paired device to a home (admin or owner)
+// (POST /v1/homes/{homeId}/devices)
+func (_ Unimplemented) ClaimDevice(w http.ResponseWriter, r *http.Request, homeId HomeId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RemoveDevice Remove a device from a home (admin or owner)
+// (DELETE /v1/homes/{homeId}/devices/{deviceId})
+func (_ Unimplemented) RemoveDevice(w http.ResponseWriter, r *http.Request, homeId HomeId, deviceId DeviceId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateDevice Rename a device or move it to a zone (admin or owner)
+// (PATCH /v1/homes/{homeId}/devices/{deviceId})
+func (_ Unimplemented) UpdateDevice(w http.ResponseWriter, r *http.Request, homeId HomeId, deviceId DeviceId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // CreateInvite Invite a mobile number to a home
 // (POST /v1/homes/{homeId}/invites)
 func (_ Unimplemented) CreateInvite(w http.ResponseWriter, r *http.Request, homeId HomeId) {
@@ -475,6 +731,36 @@ func (_ Unimplemented) RemoveMember(w http.ResponseWriter, r *http.Request, home
 // UpdateMember Change a member's role or unlock right (owner)
 // (PATCH /v1/homes/{homeId}/members/{userId})
 func (_ Unimplemented) UpdateMember(w http.ResponseWriter, r *http.Request, homeId HomeId, userId UserId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListScenes Scenes of a home
+// (GET /v1/homes/{homeId}/scenes)
+func (_ Unimplemented) ListScenes(w http.ResponseWriter, r *http.Request, homeId HomeId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// CreateScene Add a scene (admin or owner)
+// (POST /v1/homes/{homeId}/scenes)
+func (_ Unimplemented) CreateScene(w http.ResponseWriter, r *http.Request, homeId HomeId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteScene Delete a scene (admin or owner)
+// (DELETE /v1/homes/{homeId}/scenes/{sceneId})
+func (_ Unimplemented) DeleteScene(w http.ResponseWriter, r *http.Request, homeId HomeId, sceneId SceneId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// UpdateScene Replace a scene (admin or owner)
+// (PUT /v1/homes/{homeId}/scenes/{sceneId})
+func (_ Unimplemented) UpdateScene(w http.ResponseWriter, r *http.Request, homeId HomeId, sceneId SceneId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RecordSceneRun Record that a member ran a scene on their device
+// (POST /v1/homes/{homeId}/scenes/{sceneId}/runs)
+func (_ Unimplemented) RecordSceneRun(w http.ResponseWriter, r *http.Request, homeId HomeId, sceneId SceneId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -699,6 +985,128 @@ func (siw *ServerInterfaceWrapper) UpdateHome(w http.ResponseWriter, r *http.Req
 	handler.ServeHTTP(w, r)
 }
 
+// ListDevices operation middleware
+func (siw *ServerInterfaceWrapper) ListDevices(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "homeId" -------------
+	var homeId HomeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "homeId", chi.URLParam(r, "homeId"), &homeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "homeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListDevices(w, r, homeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ClaimDevice operation middleware
+func (siw *ServerInterfaceWrapper) ClaimDevice(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "homeId" -------------
+	var homeId HomeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "homeId", chi.URLParam(r, "homeId"), &homeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "homeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClaimDevice(w, r, homeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RemoveDevice operation middleware
+func (siw *ServerInterfaceWrapper) RemoveDevice(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "homeId" -------------
+	var homeId HomeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "homeId", chi.URLParam(r, "homeId"), &homeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "homeId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "deviceId" -------------
+	var deviceId DeviceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "deviceId", chi.URLParam(r, "deviceId"), &deviceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "deviceId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveDevice(w, r, homeId, deviceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateDevice operation middleware
+func (siw *ServerInterfaceWrapper) UpdateDevice(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "homeId" -------------
+	var homeId HomeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "homeId", chi.URLParam(r, "homeId"), &homeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "homeId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "deviceId" -------------
+	var deviceId DeviceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "deviceId", chi.URLParam(r, "deviceId"), &deviceId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "deviceId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateDevice(w, r, homeId, deviceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // CreateInvite operation middleware
 func (siw *ServerInterfaceWrapper) CreateInvite(w http.ResponseWriter, r *http.Request) {
 
@@ -847,6 +1255,163 @@ func (siw *ServerInterfaceWrapper) UpdateMember(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateMember(w, r, homeId, userId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListScenes operation middleware
+func (siw *ServerInterfaceWrapper) ListScenes(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "homeId" -------------
+	var homeId HomeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "homeId", chi.URLParam(r, "homeId"), &homeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "homeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListScenes(w, r, homeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateScene operation middleware
+func (siw *ServerInterfaceWrapper) CreateScene(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "homeId" -------------
+	var homeId HomeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "homeId", chi.URLParam(r, "homeId"), &homeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "homeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateScene(w, r, homeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteScene operation middleware
+func (siw *ServerInterfaceWrapper) DeleteScene(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "homeId" -------------
+	var homeId HomeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "homeId", chi.URLParam(r, "homeId"), &homeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "homeId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sceneId" -------------
+	var sceneId SceneId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sceneId", chi.URLParam(r, "sceneId"), &sceneId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sceneId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteScene(w, r, homeId, sceneId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateScene operation middleware
+func (siw *ServerInterfaceWrapper) UpdateScene(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "homeId" -------------
+	var homeId HomeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "homeId", chi.URLParam(r, "homeId"), &homeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "homeId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sceneId" -------------
+	var sceneId SceneId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sceneId", chi.URLParam(r, "sceneId"), &sceneId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sceneId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateScene(w, r, homeId, sceneId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RecordSceneRun operation middleware
+func (siw *ServerInterfaceWrapper) RecordSceneRun(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "homeId" -------------
+	var homeId HomeId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "homeId", chi.URLParam(r, "homeId"), &homeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "homeId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "sceneId" -------------
+	var sceneId SceneId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sceneId", chi.URLParam(r, "sceneId"), &sceneId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sceneId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RecordSceneRun(w, r, homeId, sceneId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1151,6 +1716,33 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/v1/me/invites/{inviteId}/decline", wrapper.DeclineInvite)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/homes/{homeId}/devices", wrapper.ListDevices)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/v1/homes/{homeId}/devices", wrapper.ClaimDevice)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/v1/homes/{homeId}/devices/{deviceId}", wrapper.RemoveDevice)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/v1/homes/{homeId}/devices/{deviceId}", wrapper.UpdateDevice)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/v1/homes/{homeId}/scenes", wrapper.ListScenes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/v1/homes/{homeId}/scenes", wrapper.CreateScene)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/v1/homes/{homeId}/scenes/{sceneId}", wrapper.DeleteScene)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/v1/homes/{homeId}/scenes/{sceneId}", wrapper.UpdateScene)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/v1/homes/{homeId}/scenes/{sceneId}/runs", wrapper.RecordSceneRun)
 	})
 
 	return r
@@ -1534,6 +2126,20 @@ func (response DeleteHome404JSONResponse) VisitDeleteHomeResponse(w http.Respons
 	return err
 }
 
+type DeleteHome409JSONResponse ErrorResponse
+
+func (response DeleteHome409JSONResponse) VisitDeleteHomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetHomeRequestObject struct {
 	HomeId HomeId `json:"homeId"`
 }
@@ -1652,6 +2258,302 @@ func (response UpdateHome403JSONResponse) VisitUpdateHomeResponse(w http.Respons
 type UpdateHome404JSONResponse ErrorResponse
 
 func (response UpdateHome404JSONResponse) VisitUpdateHomeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDevicesRequestObject struct {
+	HomeId HomeId `json:"homeId"`
+}
+
+type ListDevicesResponseObject interface {
+	VisitListDevicesResponse(w http.ResponseWriter) error
+}
+
+type ListDevices200JSONResponse DeviceList
+
+func (response ListDevices200JSONResponse) VisitListDevicesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDevices401JSONResponse ErrorResponse
+
+func (response ListDevices401JSONResponse) VisitListDevicesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListDevices404JSONResponse ErrorResponse
+
+func (response ListDevices404JSONResponse) VisitListDevicesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimDeviceRequestObject struct {
+	HomeId HomeId `json:"homeId"`
+	Body   *ClaimDeviceJSONRequestBody
+}
+
+type ClaimDeviceResponseObject interface {
+	VisitClaimDeviceResponse(w http.ResponseWriter) error
+}
+
+type ClaimDevice200JSONResponse Device
+
+func (response ClaimDevice200JSONResponse) VisitClaimDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimDevice201JSONResponse Device
+
+func (response ClaimDevice201JSONResponse) VisitClaimDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimDevice400JSONResponse ErrorResponse
+
+func (response ClaimDevice400JSONResponse) VisitClaimDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimDevice401JSONResponse ErrorResponse
+
+func (response ClaimDevice401JSONResponse) VisitClaimDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimDevice403JSONResponse ErrorResponse
+
+func (response ClaimDevice403JSONResponse) VisitClaimDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimDevice404JSONResponse ErrorResponse
+
+func (response ClaimDevice404JSONResponse) VisitClaimDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ClaimDevice409JSONResponse ErrorResponse
+
+func (response ClaimDevice409JSONResponse) VisitClaimDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveDeviceRequestObject struct {
+	HomeId   HomeId   `json:"homeId"`
+	DeviceId DeviceId `json:"deviceId"`
+}
+
+type RemoveDeviceResponseObject interface {
+	VisitRemoveDeviceResponse(w http.ResponseWriter) error
+}
+
+type RemoveDevice204Response struct {
+}
+
+func (response RemoveDevice204Response) VisitRemoveDeviceResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RemoveDevice401JSONResponse ErrorResponse
+
+func (response RemoveDevice401JSONResponse) VisitRemoveDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveDevice403JSONResponse ErrorResponse
+
+func (response RemoveDevice403JSONResponse) VisitRemoveDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RemoveDevice404JSONResponse ErrorResponse
+
+func (response RemoveDevice404JSONResponse) VisitRemoveDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDeviceRequestObject struct {
+	HomeId   HomeId   `json:"homeId"`
+	DeviceId DeviceId `json:"deviceId"`
+	Body     *UpdateDeviceJSONRequestBody
+}
+
+type UpdateDeviceResponseObject interface {
+	VisitUpdateDeviceResponse(w http.ResponseWriter) error
+}
+
+type UpdateDevice200JSONResponse Device
+
+func (response UpdateDevice200JSONResponse) VisitUpdateDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDevice400JSONResponse ErrorResponse
+
+func (response UpdateDevice400JSONResponse) VisitUpdateDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDevice401JSONResponse ErrorResponse
+
+func (response UpdateDevice401JSONResponse) VisitUpdateDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDevice403JSONResponse ErrorResponse
+
+func (response UpdateDevice403JSONResponse) VisitUpdateDeviceResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateDevice404JSONResponse ErrorResponse
+
+func (response UpdateDevice404JSONResponse) VisitUpdateDeviceResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -2004,6 +2906,339 @@ func (response UpdateMember404JSONResponse) VisitUpdateMemberResponse(w http.Res
 	return err
 }
 
+type ListScenesRequestObject struct {
+	HomeId HomeId `json:"homeId"`
+}
+
+type ListScenesResponseObject interface {
+	VisitListScenesResponse(w http.ResponseWriter) error
+}
+
+type ListScenes200JSONResponse SceneList
+
+func (response ListScenes200JSONResponse) VisitListScenesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListScenes401JSONResponse ErrorResponse
+
+func (response ListScenes401JSONResponse) VisitListScenesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListScenes404JSONResponse ErrorResponse
+
+func (response ListScenes404JSONResponse) VisitListScenesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateSceneRequestObject struct {
+	HomeId HomeId `json:"homeId"`
+	Body   *CreateSceneJSONRequestBody
+}
+
+type CreateSceneResponseObject interface {
+	VisitCreateSceneResponse(w http.ResponseWriter) error
+}
+
+type CreateScene201JSONResponse Scene
+
+func (response CreateScene201JSONResponse) VisitCreateSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateScene400JSONResponse ErrorResponse
+
+func (response CreateScene400JSONResponse) VisitCreateSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateScene401JSONResponse ErrorResponse
+
+func (response CreateScene401JSONResponse) VisitCreateSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateScene403JSONResponse ErrorResponse
+
+func (response CreateScene403JSONResponse) VisitCreateSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateScene404JSONResponse ErrorResponse
+
+func (response CreateScene404JSONResponse) VisitCreateSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateScene409JSONResponse ErrorResponse
+
+func (response CreateScene409JSONResponse) VisitCreateSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteSceneRequestObject struct {
+	HomeId  HomeId  `json:"homeId"`
+	SceneId SceneId `json:"sceneId"`
+}
+
+type DeleteSceneResponseObject interface {
+	VisitDeleteSceneResponse(w http.ResponseWriter) error
+}
+
+type DeleteScene204Response struct {
+}
+
+func (response DeleteScene204Response) VisitDeleteSceneResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteScene401JSONResponse ErrorResponse
+
+func (response DeleteScene401JSONResponse) VisitDeleteSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteScene403JSONResponse ErrorResponse
+
+func (response DeleteScene403JSONResponse) VisitDeleteSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteScene404JSONResponse ErrorResponse
+
+func (response DeleteScene404JSONResponse) VisitDeleteSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateSceneRequestObject struct {
+	HomeId  HomeId  `json:"homeId"`
+	SceneId SceneId `json:"sceneId"`
+	Body    *UpdateSceneJSONRequestBody
+}
+
+type UpdateSceneResponseObject interface {
+	VisitUpdateSceneResponse(w http.ResponseWriter) error
+}
+
+type UpdateScene200JSONResponse Scene
+
+func (response UpdateScene200JSONResponse) VisitUpdateSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateScene400JSONResponse ErrorResponse
+
+func (response UpdateScene400JSONResponse) VisitUpdateSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateScene401JSONResponse ErrorResponse
+
+func (response UpdateScene401JSONResponse) VisitUpdateSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateScene403JSONResponse ErrorResponse
+
+func (response UpdateScene403JSONResponse) VisitUpdateSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateScene404JSONResponse ErrorResponse
+
+func (response UpdateScene404JSONResponse) VisitUpdateSceneResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RecordSceneRunRequestObject struct {
+	HomeId  HomeId  `json:"homeId"`
+	SceneId SceneId `json:"sceneId"`
+}
+
+type RecordSceneRunResponseObject interface {
+	VisitRecordSceneRunResponse(w http.ResponseWriter) error
+}
+
+type RecordSceneRun200JSONResponse Scene
+
+func (response RecordSceneRun200JSONResponse) VisitRecordSceneRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RecordSceneRun401JSONResponse ErrorResponse
+
+func (response RecordSceneRun401JSONResponse) VisitRecordSceneRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RecordSceneRun404JSONResponse ErrorResponse
+
+func (response RecordSceneRun404JSONResponse) VisitRecordSceneRunResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type AddZoneRequestObject struct {
 	HomeId HomeId `json:"homeId"`
 	Body   *AddZoneJSONRequestBody
@@ -2343,6 +3578,18 @@ type StrictServerInterface interface {
 	// UpdateHome Rename a home (admin or owner)
 	// (PATCH /v1/homes/{homeId})
 	UpdateHome(ctx context.Context, request UpdateHomeRequestObject) (UpdateHomeResponseObject, error)
+	// ListDevices Devices registered to a home
+	// (GET /v1/homes/{homeId}/devices)
+	ListDevices(ctx context.Context, request ListDevicesRequestObject) (ListDevicesResponseObject, error)
+	// ClaimDevice Register a paired device to a home (admin or owner)
+	// (POST /v1/homes/{homeId}/devices)
+	ClaimDevice(ctx context.Context, request ClaimDeviceRequestObject) (ClaimDeviceResponseObject, error)
+	// RemoveDevice Remove a device from a home (admin or owner)
+	// (DELETE /v1/homes/{homeId}/devices/{deviceId})
+	RemoveDevice(ctx context.Context, request RemoveDeviceRequestObject) (RemoveDeviceResponseObject, error)
+	// UpdateDevice Rename a device or move it to a zone (admin or owner)
+	// (PATCH /v1/homes/{homeId}/devices/{deviceId})
+	UpdateDevice(ctx context.Context, request UpdateDeviceRequestObject) (UpdateDeviceResponseObject, error)
 	// CreateInvite Invite a mobile number to a home
 	// (POST /v1/homes/{homeId}/invites)
 	CreateInvite(ctx context.Context, request CreateInviteRequestObject) (CreateInviteResponseObject, error)
@@ -2358,6 +3605,21 @@ type StrictServerInterface interface {
 	// UpdateMember Change a member's role or unlock right (owner)
 	// (PATCH /v1/homes/{homeId}/members/{userId})
 	UpdateMember(ctx context.Context, request UpdateMemberRequestObject) (UpdateMemberResponseObject, error)
+	// ListScenes Scenes of a home
+	// (GET /v1/homes/{homeId}/scenes)
+	ListScenes(ctx context.Context, request ListScenesRequestObject) (ListScenesResponseObject, error)
+	// CreateScene Add a scene (admin or owner)
+	// (POST /v1/homes/{homeId}/scenes)
+	CreateScene(ctx context.Context, request CreateSceneRequestObject) (CreateSceneResponseObject, error)
+	// DeleteScene Delete a scene (admin or owner)
+	// (DELETE /v1/homes/{homeId}/scenes/{sceneId})
+	DeleteScene(ctx context.Context, request DeleteSceneRequestObject) (DeleteSceneResponseObject, error)
+	// UpdateScene Replace a scene (admin or owner)
+	// (PUT /v1/homes/{homeId}/scenes/{sceneId})
+	UpdateScene(ctx context.Context, request UpdateSceneRequestObject) (UpdateSceneResponseObject, error)
+	// RecordSceneRun Record that a member ran a scene on their device
+	// (POST /v1/homes/{homeId}/scenes/{sceneId}/runs)
+	RecordSceneRun(ctx context.Context, request RecordSceneRunRequestObject) (RecordSceneRunResponseObject, error)
 	// AddZone Add a zone (admin or owner)
 	// (POST /v1/homes/{homeId}/zones)
 	AddZone(ctx context.Context, request AddZoneRequestObject) (AddZoneResponseObject, error)
@@ -2691,6 +3953,126 @@ func (sh *strictHandler) UpdateHome(w http.ResponseWriter, r *http.Request, home
 	}
 }
 
+// ListDevices operation middleware
+func (sh *strictHandler) ListDevices(w http.ResponseWriter, r *http.Request, homeId HomeId) {
+	var request ListDevicesRequestObject
+
+	request.HomeId = homeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListDevices(ctx, request.(ListDevicesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListDevices")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListDevicesResponseObject); ok {
+		if err := validResponse.VisitListDevicesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ClaimDevice operation middleware
+func (sh *strictHandler) ClaimDevice(w http.ResponseWriter, r *http.Request, homeId HomeId) {
+	var request ClaimDeviceRequestObject
+
+	request.HomeId = homeId
+
+	var body ClaimDeviceJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClaimDevice(ctx, request.(ClaimDeviceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClaimDevice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClaimDeviceResponseObject); ok {
+		if err := validResponse.VisitClaimDeviceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RemoveDevice operation middleware
+func (sh *strictHandler) RemoveDevice(w http.ResponseWriter, r *http.Request, homeId HomeId, deviceId DeviceId) {
+	var request RemoveDeviceRequestObject
+
+	request.HomeId = homeId
+	request.DeviceId = deviceId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveDevice(ctx, request.(RemoveDeviceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveDevice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveDeviceResponseObject); ok {
+		if err := validResponse.VisitRemoveDeviceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateDevice operation middleware
+func (sh *strictHandler) UpdateDevice(w http.ResponseWriter, r *http.Request, homeId HomeId, deviceId DeviceId) {
+	var request UpdateDeviceRequestObject
+
+	request.HomeId = homeId
+	request.DeviceId = deviceId
+
+	var body UpdateDeviceJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateDevice(ctx, request.(UpdateDeviceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateDevice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateDeviceResponseObject); ok {
+		if err := validResponse.VisitUpdateDeviceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // CreateInvite operation middleware
 func (sh *strictHandler) CreateInvite(w http.ResponseWriter, r *http.Request, homeId HomeId) {
 	var request CreateInviteRequestObject
@@ -2831,6 +4213,153 @@ func (sh *strictHandler) UpdateMember(w http.ResponseWriter, r *http.Request, ho
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateMemberResponseObject); ok {
 		if err := validResponse.VisitUpdateMemberResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListScenes operation middleware
+func (sh *strictHandler) ListScenes(w http.ResponseWriter, r *http.Request, homeId HomeId) {
+	var request ListScenesRequestObject
+
+	request.HomeId = homeId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListScenes(ctx, request.(ListScenesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListScenes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListScenesResponseObject); ok {
+		if err := validResponse.VisitListScenesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateScene operation middleware
+func (sh *strictHandler) CreateScene(w http.ResponseWriter, r *http.Request, homeId HomeId) {
+	var request CreateSceneRequestObject
+
+	request.HomeId = homeId
+
+	var body CreateSceneJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateScene(ctx, request.(CreateSceneRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateScene")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateSceneResponseObject); ok {
+		if err := validResponse.VisitCreateSceneResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteScene operation middleware
+func (sh *strictHandler) DeleteScene(w http.ResponseWriter, r *http.Request, homeId HomeId, sceneId SceneId) {
+	var request DeleteSceneRequestObject
+
+	request.HomeId = homeId
+	request.SceneId = sceneId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteScene(ctx, request.(DeleteSceneRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteScene")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteSceneResponseObject); ok {
+		if err := validResponse.VisitDeleteSceneResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateScene operation middleware
+func (sh *strictHandler) UpdateScene(w http.ResponseWriter, r *http.Request, homeId HomeId, sceneId SceneId) {
+	var request UpdateSceneRequestObject
+
+	request.HomeId = homeId
+	request.SceneId = sceneId
+
+	var body UpdateSceneJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateScene(ctx, request.(UpdateSceneRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateScene")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateSceneResponseObject); ok {
+		if err := validResponse.VisitUpdateSceneResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RecordSceneRun operation middleware
+func (sh *strictHandler) RecordSceneRun(w http.ResponseWriter, r *http.Request, homeId HomeId, sceneId SceneId) {
+	var request RecordSceneRunRequestObject
+
+	request.HomeId = homeId
+	request.SceneId = sceneId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RecordSceneRun(ctx, request.(RecordSceneRunRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RecordSceneRun")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RecordSceneRunResponseObject); ok {
+		if err := validResponse.VisitRecordSceneRunResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

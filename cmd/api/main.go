@@ -13,8 +13,10 @@ import (
 	"javis_api/internal/auth"
 	"javis_api/internal/auth/smssender"
 	"javis_api/internal/config"
+	"javis_api/internal/device"
 	"javis_api/internal/home"
 	"javis_api/internal/httpapi"
+	"javis_api/internal/scene"
 	"javis_api/pkg/postgres"
 )
 
@@ -48,6 +50,9 @@ func run(ctx context.Context) error {
 	if cfg.OTPSender == config.OTPSenderDebug {
 		logger.Warn("OTP debug mode is on: no SMS is sent and codes are returned to callers")
 	}
+	scenes := scene.NewService(pool)
+	homes := home.NewService(pool, scenes)
+	scenes.UseAccess(homes)
 	authService := auth.NewService(pool, auth.Options{
 		Pepper:     []byte(cfg.OTPPepper),
 		Sender:     smssender.Debug{},
@@ -62,7 +67,9 @@ func run(ctx context.Context) error {
 			Ping:          pool.Ping,
 			HealthTimeout: cfg.DBHealthTimeout,
 			Auth:          auth.NewHandler(authService),
-			Home:          home.NewHandler(home.NewService(pool)),
+			Home:          home.NewHandler(homes),
+			Device:        device.NewHandler(device.NewService(pool, homes)),
+			Scene:         scene.NewHandler(scenes),
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,

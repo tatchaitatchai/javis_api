@@ -13,8 +13,10 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"javis_api/internal/auth"
+	"javis_api/internal/device"
 	"javis_api/internal/home"
 	"javis_api/internal/httpapi/openapi"
+	"javis_api/internal/scene"
 	"javis_api/pkg/httpx"
 )
 
@@ -26,6 +28,8 @@ type Dependencies struct {
 	HealthTimeout time.Duration
 	Auth          *auth.Handler
 	Home          *home.Handler
+	Device        *device.Handler
+	Scene         *scene.Handler
 }
 
 // server implements openapi.StrictServerInterface by embedding one handler per
@@ -34,12 +38,16 @@ type server struct {
 	healthHandler
 	*authOperations
 	*homeOperations
+	*deviceOperations
+	*sceneOperations
 }
 
 // Aliases give each module's embedded Handler a distinct field name.
 type (
-	authOperations = auth.Handler
-	homeOperations = home.Handler
+	authOperations   = auth.Handler
+	homeOperations   = home.Handler
+	deviceOperations = device.Handler
+	sceneOperations  = scene.Handler
 )
 
 var _ openapi.StrictServerInterface = server{}
@@ -76,9 +84,11 @@ func NewHandler(deps Dependencies) http.Handler {
 	})
 
 	strict := openapi.NewStrictHandlerWithOptions(server{
-		healthHandler:  healthHandler{ping: deps.Ping, timeout: deps.HealthTimeout},
-		authOperations: deps.Auth,
-		homeOperations: deps.Home,
+		healthHandler:    healthHandler{ping: deps.Ping, timeout: deps.HealthTimeout},
+		authOperations:   deps.Auth,
+		homeOperations:   deps.Home,
+		deviceOperations: deps.Device,
+		sceneOperations:  deps.Scene,
 	}, nil, openapi.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: writeInvalidRequest,
 		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {

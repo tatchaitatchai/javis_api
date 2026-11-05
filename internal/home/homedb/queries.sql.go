@@ -216,7 +216,7 @@ func (q *Queries) ExpirePendingInvite(ctx context.Context, arg ExpirePendingInvi
 }
 
 const getHome = `-- name: GetHome :one
-SELECT h.id, h.name, m.role
+SELECT h.id, h.name, m.role, m.can_unlock
 FROM javis.home_members m
 JOIN javis.homes h ON h.id = m.home_id
 WHERE m.user_id = $1 AND m.home_id = $2
@@ -228,15 +228,21 @@ type GetHomeParams struct {
 }
 
 type GetHomeRow struct {
-	ID   uuid.UUID
-	Name string
-	Role string
+	ID        uuid.UUID
+	Name      string
+	Role      string
+	CanUnlock bool
 }
 
 func (q *Queries) GetHome(ctx context.Context, arg GetHomeParams) (GetHomeRow, error) {
 	row := q.db.QueryRow(ctx, getHome, arg.UserID, arg.HomeID)
 	var i GetHomeRow
-	err := row.Scan(&i.ID, &i.Name, &i.Role)
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Role,
+		&i.CanUnlock,
+	)
 	return i, err
 }
 

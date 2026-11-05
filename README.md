@@ -1,10 +1,10 @@
 # JAVIS API
 
-Go/PostgreSQL API for JAVIS Home. The current Flutter UI uses local mock data;
-it does not call this API yet. Health, phone OTP sign-in, homes, zones, members
-and invitation routes are implemented. The package
-layout, dependency rules and library choices are defined in
-`specs/002-api-architecture.md`.
+Go/PostgreSQL API for JAVIS Home. The Flutter app uses it when built with
+`JAVIS_API_URL`, and stays on local demo data otherwise. Health, phone OTP
+sign-in, homes, zones, members, invitations, the device registry and scenes are
+implemented. The package layout, dependency rules and library choices are defined
+in `specs/002-api-architecture.md`.
 
 ## Local development
 

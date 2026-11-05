@@ -19,10 +19,6 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-func apiError(code, message string) openapi.ErrorResponse {
-	return openapi.ErrorResponse{Error: openapi.Error{Code: code, Message: message}}
-}
-
 func (h *Handler) RequestOtp(ctx context.Context, request openapi.RequestOtpRequestObject) (openapi.RequestOtpResponseObject, error) {
 	challenge, err := h.service.RequestCode(ctx, request.Body.Phone, httpx.ClientIPFrom(ctx))
 	var limited RateLimitedError
@@ -34,14 +30,14 @@ func (h *Handler) RequestOtp(ctx context.Context, request openapi.RequestOtpRequ
 			DebugCode:          challenge.DebugCode,
 		}, nil
 	case errors.Is(err, ErrInvalidPhone):
-		return openapi.RequestOtp400JSONResponse(apiError("invalid_phone", "Mobile number is not valid")), nil
+		return openapi.RequestOtp400JSONResponse(openapi.NewError("invalid_phone", "Mobile number is not valid")), nil
 	case errors.As(err, &limited):
 		return openapi.RequestOtp429JSONResponse{
-			Body:    apiError("rate_limited", "Too many requests. Please try again later"),
+			Body:    openapi.NewError("rate_limited", "Too many requests. Please try again later"),
 			Headers: openapi.RequestOtp429ResponseHeaders{RetryAfter: int(limited.RetryAfter.Seconds())},
 		}, nil
 	case errors.Is(err, ErrSMSUnavailable):
-		return openapi.RequestOtp503JSONResponse(apiError("sms_unavailable", "The code could not be sent")), nil
+		return openapi.RequestOtp503JSONResponse(openapi.NewError("sms_unavailable", "The code could not be sent")), nil
 	}
 	return nil, err
 }
@@ -56,11 +52,11 @@ func (h *Handler) VerifyOtp(ctx context.Context, request openapi.VerifyOtpReques
 			User:      toAPIUser(session.User),
 		}, nil
 	case errors.Is(err, ErrInvalidRequest):
-		return openapi.VerifyOtp400JSONResponse(apiError("invalid_request", "Request is invalid")), nil
+		return openapi.VerifyOtp400JSONResponse(openapi.NewError("invalid_request", "Request is invalid")), nil
 	case errors.Is(err, ErrInvalidCode):
-		return openapi.VerifyOtp401JSONResponse(apiError("invalid_code", "Code is incorrect or has expired")), nil
+		return openapi.VerifyOtp401JSONResponse(openapi.NewError("invalid_code", "Code is incorrect or has expired")), nil
 	case errors.Is(err, ErrTooManyAttempts):
-		return openapi.VerifyOtp429JSONResponse(apiError("too_many_attempts", "Too many attempts. Please request a new code")), nil
+		return openapi.VerifyOtp429JSONResponse(openapi.NewError("too_many_attempts", "Too many attempts. Please request a new code")), nil
 	}
 	return nil, err
 }
@@ -68,7 +64,7 @@ func (h *Handler) VerifyOtp(ctx context.Context, request openapi.VerifyOtpReques
 func (h *Handler) Logout(ctx context.Context, _ openapi.LogoutRequestObject) (openapi.LogoutResponseObject, error) {
 	principal, ok := PrincipalFrom(ctx)
 	if !ok {
-		return openapi.Logout401JSONResponse(unauthorized()), nil
+		return openapi.Logout401JSONResponse(openapi.Unauthorized()), nil
 	}
 	if err := h.service.Logout(ctx, principal); err != nil {
 		return nil, err
@@ -79,11 +75,11 @@ func (h *Handler) Logout(ctx context.Context, _ openapi.LogoutRequestObject) (op
 func (h *Handler) GetMe(ctx context.Context, _ openapi.GetMeRequestObject) (openapi.GetMeResponseObject, error) {
 	principal, ok := PrincipalFrom(ctx)
 	if !ok {
-		return openapi.GetMe401JSONResponse(unauthorized()), nil
+		return openapi.GetMe401JSONResponse(openapi.Unauthorized()), nil
 	}
 	user, err := h.service.Me(ctx, principal)
 	if errors.Is(err, ErrUnauthorized) {
-		return openapi.GetMe401JSONResponse(unauthorized()), nil
+		return openapi.GetMe401JSONResponse(openapi.Unauthorized()), nil
 	}
 	if err != nil {
 		return nil, err
@@ -94,26 +90,22 @@ func (h *Handler) GetMe(ctx context.Context, _ openapi.GetMeRequestObject) (open
 func (h *Handler) UpdateMe(ctx context.Context, request openapi.UpdateMeRequestObject) (openapi.UpdateMeResponseObject, error) {
 	principal, ok := PrincipalFrom(ctx)
 	if !ok {
-		return openapi.UpdateMe401JSONResponse(unauthorized()), nil
+		return openapi.UpdateMe401JSONResponse(openapi.Unauthorized()), nil
 	}
 	user, err := h.service.SetName(ctx, principal, request.Body.Name)
 	switch {
 	case err == nil:
 		return openapi.UpdateMe200JSONResponse(toAPIUser(user)), nil
 	case errors.Is(err, ErrInvalidName):
-		return openapi.UpdateMe400JSONResponse(apiError("invalid_name", "Name is not valid")), nil
+		return openapi.UpdateMe400JSONResponse(openapi.NewError("invalid_name", "Name is not valid")), nil
 	case errors.Is(err, ErrUnauthorized):
-		return openapi.UpdateMe401JSONResponse(unauthorized()), nil
+		return openapi.UpdateMe401JSONResponse(openapi.Unauthorized()), nil
 	}
 	return nil, err
 }
 
 func toAPIUser(user User) openapi.User {
 	return openapi.User{Id: user.ID, Phone: user.Phone, Name: user.Name}
-}
-
-func unauthorized() openapi.ErrorResponse {
-	return apiError("unauthorized", "Please sign in")
 }
 
 type principalKey struct{}
@@ -148,7 +140,7 @@ func (h *Handler) RequireSession(next http.Handler) http.Handler {
 
 func writeUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("WWW-Authenticate", "Bearer")
-	httpx.WriteJSON(w, http.StatusUnauthorized, unauthorized())
+	httpx.WriteJSON(w, http.StatusUnauthorized, openapi.Unauthorized())
 }
 
 func bearerToken(r *http.Request) (string, bool) {

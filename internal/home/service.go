@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"javis_api/internal/home/homedb"
@@ -22,6 +23,8 @@ const (
 	maxHomesPerOwner = 20
 	maxZonesPerHome  = 50
 	maxNameLength    = 60
+
+	foreignKeyViolation = "23503"
 )
 
 // Role is a person's standing in a home.
@@ -48,6 +51,7 @@ var (
 	ErrInvalidZone      = errors.New("invalid zone")
 	ErrHomeLimitReached = errors.New("home limit reached")
 	ErrZoneLimitReached = errors.New("zone limit reached")
+	ErrHomeHasDevices   = errors.New("home has devices")
 )
 
 // presetKeys are the zones the client translates; everything else is a typed name.
@@ -68,10 +72,11 @@ type Zone struct {
 }
 
 type Home struct {
-	ID    uuid.UUID
-	Name  string
-	Role  Role
-	Zones []Zone
+	ID        uuid.UUID
+	Name      string
+	Role      Role
+	CanUnlock bool
+	Zones     []Zone
 }
 
 type Summary struct {
@@ -82,13 +87,20 @@ type Summary struct {
 	MemberCount int
 }
 
+// Seeder adds another module's starting data to a new home, inside the
+// transaction that creates it, so this module does not depend on that one.
+type Seeder interface {
+	SeedHome(ctx context.Context, tx pgx.Tx, homeID uuid.UUID) error
+}
+
 type Service struct {
 	pool    *pgxpool.Pool
 	queries *homedb.Queries
+	seeders []Seeder
 }
 
-func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool, queries: homedb.New(pool)}
+func NewService(pool *pgxpool.Pool, seeders ...Seeder) *Service {
+	return &Service{pool: pool, queries: homedb.New(pool), seeders: seeders}
 }
 
 // RequireRole is the access check for anything inside a home. A non-member gets
@@ -128,7 +140,7 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID) ([]Summary, error)
 // Create adds a home, its zones and the caller as owner in one transaction.
 func (s *Service) Create(ctx context.Context, userID uuid.UUID, name string, zones []ZoneInput) (Home, error) {
 	name = strings.TrimSpace(name)
-	if !validName(name) || len(zones) > maxZonesPerHome {
+	if !ValidName(name) || len(zones) > maxZonesPerHome {
 		return Home{}, ErrInvalidHome
 	}
 	cleaned := make([]ZoneInput, 0, len(zones))
@@ -143,7 +155,7 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, name string, zon
 	if err != nil {
 		return Home{}, err
 	}
-	home := Home{ID: homeID, Name: name, Role: RoleOwner, Zones: make([]Zone, 0, len(cleaned))}
+	home := Home{ID: homeID, Name: name, Role: RoleOwner, CanUnlock: true, Zones: make([]Zone, 0, len(cleaned))}
 	err = postgres.WithTx(ctx, s.pool, func(tx pgx.Tx) error {
 		queries := homedb.New(tx)
 		if err := queries.LockOwnerHomes(ctx, userID.String()); err != nil {
@@ -169,6 +181,11 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, name string, zon
 			}
 			home.Zones = append(home.Zones, created)
 		}
+		for _, seeder := range s.seeders {
+			if err := seeder.SeedHome(ctx, tx, homeID); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -193,7 +210,7 @@ func (s *Service) Get(ctx context.Context, userID, homeID uuid.UUID) (Home, erro
 	for _, zone := range rows {
 		zones = append(zones, Zone(zone))
 	}
-	return Home{ID: row.ID, Name: row.Name, Role: Role(row.Role), Zones: zones}, nil
+	return Home{ID: row.ID, Name: row.Name, Role: Role(row.Role), CanUnlock: row.CanUnlock, Zones: zones}, nil
 }
 
 func (s *Service) Rename(ctx context.Context, userID, homeID uuid.UUID, name string) (Home, error) {
@@ -201,7 +218,7 @@ func (s *Service) Rename(ctx context.Context, userID, homeID uuid.UUID, name str
 		return Home{}, err
 	}
 	name = strings.TrimSpace(name)
-	if !validName(name) {
+	if !ValidName(name) {
 		return Home{}, ErrInvalidHome
 	}
 	if err := s.queries.RenameHome(ctx, homedb.RenameHomeParams{ID: homeID, Name: name}); err != nil {
@@ -210,12 +227,18 @@ func (s *Service) Rename(ctx context.Context, userID, homeID uuid.UUID, name str
 	return s.Get(ctx, userID, homeID)
 }
 
-// Delete removes a home; zones and memberships cascade with it.
+// Delete removes a home; everything but its devices cascades with it. The
+// database refuses while devices remain, because they would be left unowned.
 func (s *Service) Delete(ctx context.Context, userID, homeID uuid.UUID) error {
 	if err := s.RequireRole(ctx, userID, homeID, RoleOwner); err != nil {
 		return err
 	}
-	return s.queries.DeleteHome(ctx, homeID)
+	err := s.queries.DeleteHome(ctx, homeID)
+	var database *pgconn.PgError
+	if errors.As(err, &database) && database.Code == foreignKeyViolation {
+		return ErrHomeHasDevices
+	}
+	return err
 }
 
 func (s *Service) AddZone(ctx context.Context, userID, homeID uuid.UUID, input ZoneInput) (Zone, error) {
@@ -278,13 +301,14 @@ func cleanZone(zone ZoneInput) (ZoneInput, error) {
 		return zone, nil
 	}
 	name := strings.TrimSpace(*zone.Name)
-	if !validName(name) {
+	if !ValidName(name) {
 		return ZoneInput{}, ErrInvalidZone
 	}
 	return ZoneInput{Name: &name}, nil
 }
 
-func validName(name string) bool {
+// ValidName is the rule for every name people type: homes, zones, devices, scenes.
+func ValidName(name string) bool {
 	length := utf8.RuneCountInString(name)
 	if length == 0 || length > maxNameLength {
 		return false
