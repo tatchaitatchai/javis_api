@@ -1,0 +1,10 @@
+# Only source reaches the build context; secrets must never enter an image.
+*
+!go.mod
+!go.sum
+!cmd
+!internal
+!pkg
+!migrations
+**/*_test.go
+migrations/README.md

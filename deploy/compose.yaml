@@ -1,0 +1,83 @@
+# The JAVIS stack on the shared server. See specs/007-deployment.md.
+#
+# It shares that server with customer work, so it publishes no host ports,
+# keeps its database on a private network, and caps its own CPU, memory and logs.
+name: javis
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  api:
+    image: javis-api:${JAVIS_IMAGE_TAG:?Set JAVIS_IMAGE_TAG in .env}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: development
+      OTP_SENDER: debug
+      OTP_PEPPER: ${OTP_PEPPER:?Set OTP_PEPPER in .env}
+      DATABASE_URL: postgres://javis:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/javis?sslmode=disable
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health/ready"]
+      interval: 15s
+      timeout: 3s
+      retries: 4
+      start_period: 10s
+    networks:
+      data: {}
+      edge:
+        aliases:
+          - javis-api
+    mem_limit: 256m
+    cpus: 0.5
+    logging: *logging
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: javis
+      POSTGRES_USER: javis
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U javis -d javis"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - data
+    mem_limit: 512m
+    cpus: 0.5
+    logging: *logging
+
+  # Runs only on request: docker compose run --rm migrate up
+  migrate:
+    image: javis-migrate:${JAVIS_IMAGE_TAG:?Set JAVIS_IMAGE_TAG in .env}
+    profiles: [ops]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOOSE_DBSTRING: postgres://javis:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/javis?sslmode=disable
+    networks:
+      - data
+    logging: *logging
+
+networks:
+  data:
+    internal: true
+  # The network the shared Caddy already sits on. It exists outside this stack,
+  # so nothing here can create or remove it.
+  edge:
+    name: ${JAVIS_EDGE_NETWORK:?Set JAVIS_EDGE_NETWORK in .env}
+    external: true
+
+volumes:
+  postgres_data:
